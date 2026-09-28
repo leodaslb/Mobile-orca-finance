@@ -1,0 +1,37 @@
+# Dependências e artefatos de build
+**/node_modules/
+**/dist/
+**/build/
+**/coverage/
+**/*.tsbuildinfo
+
+# Ambientes locais: manter exemplos, nunca credenciais
+.env
+.env.*
+!.env.example
+
+# Expo / React Native
+orca-finance/.expo/
+orca-finance/.expo-audit/
+orca-finance/web-build/
+orca-finance/expo-env.d.ts
+orca-finance/android/
+orca-finance/ios/
+**/.metro-health-check*
+
+# Prisma Client gerado; schema e migrations são versionados
+backend/src/generated/prisma/
+
+# Logs, arquivos locais e chaves
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+Thumbs.db
+*.jks
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
