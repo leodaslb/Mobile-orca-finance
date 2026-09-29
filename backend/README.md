@@ -1,8 +1,9 @@
 # Orca Finance Backend
 
-Bootstrap técnico do monólito modular NestJS + Fastify + Prisma + PostgreSQL.
-A migration inicial foi gerada em modo `--create-only` e ainda não foi aplicada.
-Não contém funcionalidades de negócio ou seed.
+API NestJS + Fastify + Prisma + PostgreSQL do Orca Finance. A migration inicial
+está aplicada no banco local de desenvolvimento. O seed contém somente o catálogo
+global de categorias principais. Esta versão implementa conta, login, perfis,
+subcategorias e o núcleo manual de transações.
 
 ## Preparação
 
@@ -14,9 +15,12 @@ npm run prisma:generate
 Copy-Item .env.example .env
 ```
 
-Preencha `DATABASE_URL` com a URL do seu PostgreSQL e ajuste `PORT` (padrão 3000).
+Preencha `DATABASE_URL` com a URL do seu PostgreSQL, configure `JWT_SECRET` com um
+segredo local forte e ajuste `PORT` (padrão 3000). `JWT_EXPIRES_IN` é o prazo do
+access token em segundos; o exemplo usa `3600` (uma hora).
 O exemplo mantém a URL vazia: nenhuma credencial real é fornecida ou criada.
 Não versione `.env`. O Prisma CLI e `main.ts` carregam o ambiente com `dotenv`.
+Sem `JWT_SECRET` ou `JWT_EXPIRES_IN` válidos, a aplicação falha ao iniciar.
 
 ```powershell
 npm run start:dev
@@ -38,13 +42,20 @@ validar o schema ou gerar o client. Nenhum desses comandos modifica o banco.
 | `npm run build` | Compilar TypeScript |
 | `npm run lint` | Verificar código, sem correções automáticas |
 | `npm test` | Testes HTTP em memória usando Fastify inject |
+| `npm run test:e2e` | Fluxo HTTP com PostgreSQL local; limpa somente registros criados pelo teste |
 | `npm run prisma:format` | Formatar o schema |
 | `npm run prisma:validate` | Validar o schema |
 | `npm run prisma:generate` | Gerar client em `src/generated/prisma` |
+| `npx prisma db seed` | Gerar client, compilar e inserir/atualizar as categorias globais |
 
 Após alterar o schema, gere novamente o client antes de build/test/start.
 O código gerado e `dist` não são versionados. As versões exatas das dependências
 e o lockfile permitem reproduzir a instalação com `npm ci`.
+O seed usa os sete nomes de `../docs/Orca_Finance_Catalogo_Categorias.md`,
+sem criar subcategorias, usuários ou dados de demonstração. Pode ser executado
+novamente sem duplicar categorias; categorias já existentes são identificadas
+pelo nome e têm apenas `ordem` e `ativa` atualizadas. `icone` e `cor` ficam
+nulos até que seus valores persistidos sejam definidos.
 
 ## Organização
 
@@ -58,19 +69,75 @@ src/
   common/configure-app.ts
   database/prisma.module.ts
   database/prisma.service.ts
+  modules/auth/
+  modules/users/
+  modules/profiles/
+  modules/categories/
+  modules/transactions/
 test/bootstrap.spec.ts
+test/foundation.spec.ts
+test/foundation.e2e.ts
+test/transactions.spec.ts
 ```
 
-Os módulos de negócio serão criados em `src/modules` quando implementados.
-O `PrismaModule` exporta o service explicitamente, sem ser global. O helper de
-configuração aplica o mesmo ValidationPipe ao bootstrap e aos testes.
+Controllers cuidam de HTTP/DTOs; Services validam regras e ownership; Repositories
+usam Prisma. O `PrismaModule` exporta o service explicitamente, sem ser global.
+O helper de configuração aplica o mesmo ValidationPipe ao bootstrap e aos testes.
+
+## API desta etapa
+
+| Método | Rota | Acesso |
+|---|---|---|
+| POST | `/auth/register` | Público; cria conta e primeiro perfil em uma transação |
+| POST | `/auth/login` | Público; retorna `accessToken` e `tokenType` |
+| GET | `/me` | Bearer token |
+| GET, POST | `/profiles` | Bearer token; somente perfis da conta |
+| GET, PATCH | `/profiles/:profileId` | Bearer token; exige ownership |
+| GET | `/categories` | Bearer token; lê catálogo global ativo |
+| GET, POST | `/profiles/:profileId/subcategories` | Bearer token; exige ownership |
+| PATCH | `/profiles/:profileId/subcategories/:subcategoryId` | Bearer token; permite `nome` e `ativa` |
+| POST, GET | `/profiles/:profileId/transactions` | Bearer token; cria ou lista somente no perfil autorizado |
+| GET, PATCH | `/profiles/:profileId/transactions/:transactionId` | Bearer token; detalhe ou edição no perfil autorizado |
+
+O cadastro aceita `nome`, `email` e `senha`; o login aceita `email` e `senha`.
+O cadastro devolve `user` e `profile`, sem hash de senha. `GET /me` devolve somente
+`id`, `nome`, `email`, `createdAt` e `updatedAt`. Subcategorias não possuem rota de
+exclusão física. Perfis novos começam em BRL e sem movimentações; saldo não é
+persistido. A comparação de e-mail ainda é case-sensitive, conforme a unicidade
+atual do banco; a política de normalização permanece decisão pendente.
+
+### Transações manuais
+
+`POST /profiles/:profileId/transactions` exige `tipo`, `valor`, `dataHora`,
+`descricao` e `status`. `valor` é string decimal, por exemplo `"15.75"`, com até
+duas casas; a resposta também usa string com duas casas. `dataHora` é um instante
+ISO 8601 com `Z` ou offset, por exemplo `"2026-09-29T15:30:00-03:00"`; a resposta
+é normalizada para UTC. `tipo` aceita `RECEITA` ou `DESPESA`; `status` aceita
+`EFETIVADA` ou `PREVISTA`. `essencialidade` usa `NAO_CLASSIFICADA` por padrão e
+`ehGastoLivre` usa `false` por padrão.
+
+Categoria é obrigatória no cadastro manual comum. Somente uma `DESPESA` marcada
+explicitamente com `ehGastoLivre: true` pode ficar sem categoria. Quando houver
+`subcategoriaId`, ela precisa estar ativa e pertencer ao mesmo perfil e categoria.
+`anotacao` é opcional e distinta de `descricao`. Método de pagamento é opcional
+e usa o enum do schema. `PATCH` aceita os mesmos campos manuais, revalidando o
+estado final; `null` pode limpar anotação, categoria, subcategoria e método de
+pagamento quando o resultado respeitar as regras. Não existe `DELETE` nesta etapa.
+
+`GET /profiles/:profileId/transactions` aceita filtros `dataInicial`, `dataFinal`
+(instantes ISO 8601 inclusivos), `tipo`, `categoriaId`, `metodoPagamento`,
+`status`, `descricao` (trecho da descrição, sem diferenciar maiúsculas/minúsculas)
+e `valor` (igualdade decimal). A ordenação técnica é `dataHora` decrescente e,
+em empate, `id` decrescente. Não há paginação nesta primeira versão.
+Recorrência, câmbio, localização, auditoria e reversão não são expostos nesse CRUD.
 
 ## Modelo e rastreabilidade
 
 A fonte oficial é `../docs/Orca_Finance_Modelo_de_Dados.md`. O schema mantém os
 30 modelos físicos já descritos e usa os nomes de tabelas, colunas, índices e
 constraints do SQL PostgreSQL de referência por `@map`, `@@map` e `map`.
-Não implementa os comportamentos de negócio dessas entidades.
+O schema por si só não implementa regras de negócio; as regras desta etapa estão
+nos Services de conta, perfil, categoria e transação.
 
 | Origem | US / RN | Representação estrutural |
 |---|---|---|
@@ -83,12 +150,10 @@ Não implementa os comportamentos de negócio dessas entidades.
 | RF57 | US45; RN-ORC-05 | Cota única por perfil, ano e mês |
 | RF04 | US10; RN-META-01/02 | Meta e AporteMeta separados de Transacao |
 
-Nesta etapa a validação é estrutural (`prisma validate` e geração/compilação).
-Os testes HTTP verificam health, transformação de DTO e rejeição de entradas
-inválidas e campos desconhecidos. Não são testes das regras financeiras.
-Ownership, auditoria transacional, valores positivos, regras condicionais e
-unicidade de automação ativa serão implementados e testados nos Services.
-Não se presume que FKs isoladamente garantam o isolamento entre perfis.
+Os testes cobrem o fluxo real HTTP → PostgreSQL para conta, login, ownership,
+catálogo, subcategorias e transações manuais. Auditoria e orçamento continuam
+fora do escopo. Não se presume que FKs isoladamente garantam o isolamento entre
+perfis.
 
 ## Referências e decisões do bootstrap
 
@@ -110,10 +175,9 @@ Não se presume que FKs isoladamente garantam o isolamento entre perfis.
 - Nenhuma alteração foi feita nos documentos compartilhados. As referências
   e decisões acima devem ser incorporadas a `../docs/` na manutenção documental.
 
-O PostgreSQL de desenvolvimento já foi configurado localmente. A próxima etapa
-é revisar `prisma/migrations/20260928150948_init/migration.sql` e, somente
-depois, decidir a aplicação da migration. Decisões abertas de autenticação,
-anexos e demais domínios permanecem para suas respectivas implementações.
+O PostgreSQL de desenvolvimento está configurado localmente e a migration inicial
+foi aplicada. A estratégia atual de autenticação usa somente access token JWT;
+refresh, revogação e recuperação de conta permanecem fora desta versão.
 
 ## Validação do bootstrap — 27/09/2026
 
@@ -131,11 +195,8 @@ anexos e demais domínios permanecem para suas respectivas implementações.
 | Campos das tabelas documentadas no modelo | 208 campos presentes nos 30 modelos |
 | `git diff --check` | Não foi executado no bootstrap de 27/09; Git inicializado na raiz em 28/09 |
 
-Na validação do bootstrap de 27/09, nenhum banco foi acessado. Em 28/09, o
-banco local `orca_finance_dev` foi criado e a migration inicial foi gerada,
-mas permanece pendente. Constraints ainda precisam ser validadas no
-PostgreSQL após a aplicação da migration. O frontend e os documentos
-compartilhados permaneceram intocados nesta etapa.
+Esta tabela registra apenas a validação histórica do bootstrap em 27/09. A
+migration foi aplicada e suas constraints foram validadas posteriormente.
 
 ### Dependências: resultado real do npm audit
 

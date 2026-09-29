@@ -25,10 +25,14 @@ class ProbeController {
 describe('Bootstrap NestJS + Fastify', () => {
   let app: NestFastifyApplication;
   const originalUrl = process.env.DATABASE_URL;
+  const originalSecret = process.env.JWT_SECRET;
+  const originalExpiry = process.env.JWT_EXPIRES_IN;
 
   beforeAll(async () => {
     // URL fictícia: os testes não executam queries nem abrem conexão PostgreSQL.
     process.env.DATABASE_URL = 'postgresql://bootstrap:unused@127.0.0.1:1/bootstrap';
+    process.env.JWT_SECRET = 'bootstrap-test-only-secret';
+    process.env.JWT_EXPIRES_IN = '3600';
     const module = await Test.createTestingModule({
       imports: [AppModule],
       controllers: [ProbeController],
@@ -43,6 +47,10 @@ describe('Bootstrap NestJS + Fastify', () => {
     await app?.close();
     if (originalUrl === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = originalUrl;
+    if (originalSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = originalSecret;
+    if (originalExpiry === undefined) delete process.env.JWT_EXPIRES_IN;
+    else process.env.JWT_EXPIRES_IN = originalExpiry;
   });
 
   it('responde health sem depender de banco acessível', async () => {
