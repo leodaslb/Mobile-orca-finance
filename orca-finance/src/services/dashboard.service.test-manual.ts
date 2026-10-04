@@ -1,4 +1,4 @@
-import { getDashboardData } from './dashboard.service';
+import { getDashboardData } from './dashboard.mock-service';
 
 const data = getDashboardData();
 

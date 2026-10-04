@@ -27,10 +27,10 @@ function load(file) {
   return module.exports;
 }
 
-const categoryService = load('src/services/category.service.ts');
-const transactionService = load('src/services/transaction.service.ts');
-const planningService = load('src/services/planning.service.ts');
-const { getDashboardData } = load('src/services/dashboard.service.ts');
+const categoryService = load('src/services/category.mock-service.ts');
+const transactionService = load('src/services/transaction.mock-service.ts');
+const planningService = load('src/services/planning.mock-service.ts');
+const { getDashboardData } = load('src/services/dashboard.mock-service.ts');
 const { subcategoriesMock } = load('src/data/mocks/categories.mock.ts');
 const { transactionsMock } = load('src/data/mocks/transactions.mock.ts');
 const { mockScenario } = load('src/data/mocks/scenario.mock.ts');
@@ -43,7 +43,7 @@ try {
   });
   assert.equal(created.id, 'subcategory-feira-semanal');
   assert.equal(created.name, 'Feira semanal');
-  assert.ok(transactionService.getTransactionSubcategories('category-food')
+  assert.ok(transactionService.getMockTransactionSubcategories('category-food')
     .some((item) => item.id === created.id));
   assert.throws(() => categoryService.createSubcategory({
     categoryId: 'category-food',
@@ -93,7 +93,7 @@ const originalTransactionCount = transactionsMock.length;
 try {
   planningService.saveFreeSpendingAllowance(45000);
   assert.equal(planningService.getFreeSpendingAllowance().limitCents, 45000);
-  const marked = transactionService.createTransaction({
+  const marked = transactionService.createMockTransaction({
     type: 'expense', amountCents: 2500, date: '2026-09-13', time: '16:00',
     description: 'Gasto livre explícito', categoryId: null, freeSpending: true,
   });

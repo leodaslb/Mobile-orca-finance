@@ -6,11 +6,13 @@ import {
   IconPlus,
   IconTargetArrow,
 } from '@tabler/icons-react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useCallback } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AsyncState } from '@/components/common/AsyncState';
+import { useProfileResource } from '@/hooks/useProfileResource';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { getGoals } from '@/services/goal.service';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
@@ -19,11 +21,8 @@ import { formatTransactionDate } from '@/utils/date';
 
 export default function GoalsScreen() {
   const router = useRouter();
-  const [, setRevision] = useState(0);
-  useFocusEffect(useCallback(() => {
-    setRevision((current) => current + 1);
-  }, []));
-  const goals = getGoals();
+  const resource = useProfileResource(useCallback(() => getGoals(), []));
+  const goals = resource.data ?? [];
   const goBack = () => router.canGoBack()
     ? router.back()
     : router.replace('/(tabs)/planejamento');
@@ -41,8 +40,9 @@ export default function GoalsScreen() {
         <Text style={styles.newText}>Nova meta</Text>
       </Pressable>
     </View>
-    <ScrollView contentContainerStyle={styles.content}>
-      {goals.length === 0 && <Text style={styles.empty}>Nenhuma meta cadastrada.</Text>}
+    <ScrollView refreshControl={<RefreshControl refreshing={resource.refreshing} onRefresh={resource.reload} />} contentContainerStyle={styles.content}>
+      {(resource.loading || resource.error) && <AsyncState loading={resource.loading} error={resource.error} onRetry={resource.reload} />}
+      {!resource.loading && !resource.error && goals.length === 0 && <Text style={styles.empty}>Nenhuma meta cadastrada.</Text>}
       {goals.map((goal, index) => <Pressable key={goal.id}
         onPress={() => router.push({ pathname: '/metas/[id]', params: { id: goal.id } })}
         style={styles.card} accessibilityRole="button">

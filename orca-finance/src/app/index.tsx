@@ -1,6 +1,6 @@
 import { IconEye, IconX } from '@tabler/icons-react-native';
 import { Redirect } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,7 +10,7 @@ import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 type SheetMode = 'login' | 'signup' | null;
 
 export default function Index() {
-  const { account, signIn, signUp } = useAppSession();
+  const { account, activeProfileId, signIn, signUp } = useAppSession();
   const [mode, setMode] = useState<SheetMode>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -18,8 +18,10 @@ export default function Index() {
   const [confirmation, setConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const sending = useRef(false);
 
-  if (account) return <Redirect href="/(tabs)" />;
+  if (account) return <Redirect href={activeProfileId ? "/(tabs)" : "/configuracoes"} />;
 
   function openSheet(next: Exclude<SheetMode, null>) {
     setMode(next);
@@ -29,18 +31,20 @@ export default function Index() {
     setShowPassword(false);
   }
 
-  function submit() {
+  async function submit() {
+    if (sending.current) return;
+    sending.current = true; setBusy(true); setError('');
     try {
       if (mode === 'signup') {
         if (password !== confirmation) throw new Error('As senhas não conferem.');
-        signUp(name, email, password);
+        await signUp(name, email, password);
       } else {
-        signIn(email, password);
+        await signIn(email, password);
       }
       setMode(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Não foi possível continuar.');
-    }
+    } finally { sending.current = false; setBusy(false); }
   }
 
   return <SafeAreaView style={styles.screen}>
@@ -60,12 +64,12 @@ export default function Index() {
     </View>
     <Text style={styles.footer}>Seus dados financeiros em um só lugar.</Text>
 
-    <Modal visible={mode !== null} transparent animationType="slide" onRequestClose={() => setMode(null)}>
+    <Modal visible={mode !== null} transparent animationType="slide" onRequestClose={() => { if (!busy) setMode(null); }}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={styles.dismissArea} onPress={() => setMode(null)} />
+        <Pressable style={styles.dismissArea} onPress={() => { if (!busy) setMode(null); }} />
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Fechar" style={styles.close} onPress={() => setMode(null)}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Fechar" style={styles.close} onPress={() => { if (!busy) setMode(null); }}>
             <IconX size={20} color={colors.textSecondary} />
           </Pressable>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -93,12 +97,12 @@ export default function Index() {
               <TextInput style={styles.input} value={confirmation} onChangeText={setConfirmation} placeholder="••••••••" placeholderTextColor={colors.navInactive} secureTextEntry={!showPassword} autoCapitalize="none" />
             </View>}
             {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-            <Pressable accessibilityRole="button" style={[styles.primaryButton, styles.submit]} onPress={submit}>
-              <Text style={styles.primaryText}>{mode === 'login' ? 'Entrar' : 'Criar conta'}</Text>
+            <Pressable accessibilityRole="button" style={[styles.primaryButton, styles.submit]} disabled={busy} accessibilityState={{ busy, disabled: busy }} onPress={submit}>
+              <Text style={styles.primaryText}>{busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}</Text>
             </Pressable>
             <View style={styles.switchRow}>
               <Text style={styles.switchText}>{mode === 'login' ? 'Ainda não tem conta? ' : 'Já possui uma conta? '}</Text>
-              <Pressable accessibilityRole="button" onPress={() => openSheet(mode === 'login' ? 'signup' : 'login')}>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => openSheet(mode === 'login' ? 'signup' : 'login')}>
                 <Text style={styles.switchLink}>{mode === 'login' ? 'Criar conta' : 'Entrar'}</Text>
               </Pressable>
             </View>

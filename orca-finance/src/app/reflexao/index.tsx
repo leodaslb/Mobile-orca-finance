@@ -1,23 +1,23 @@
 import { IconArrowLeft, IconPlayerPause } from '@tabler/icons-react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppCard } from '@/components/common/AppCard';
-import { finalizeReflectionItem, getReflectionItems, isReflectionReleased } from '@/services/reflection.service';
+import { discardRemoteReflectionItem, getRemoteReflectionItems } from '@/services/reflection.service';
+import { useProfileMutation } from '@/hooks/useProfileMutation';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { AsyncState } from '@/components/common/AsyncState';
 import { colors, fontFamily, fontSize, spacing } from '@/theme';
-import { formatCurrency } from '@/utils/currency';
 
 export default function ReflectionListScreen() {
   const router = useRouter();
-  const [, setRevision] = useState(0);
-  useFocusEffect(useCallback(() => { setRevision((value) => value + 1); }, []));
-  useEffect(() => {
-    const timer = setInterval(() => setRevision((value) => value + 1), 30000);
-    return () => clearInterval(timer);
-  }, []);
-  const items = getReflectionItems();
+  const load = useCallback(() => getRemoteReflectionItems(), []);
+  const { data, loading, refreshing, error, reload } = useProfileResource(load);
+  const mutation = useProfileMutation();
+  const items = data ?? [];
+  useEffect(() => { const timer = setInterval(reload, 30000); return () => clearInterval(timer); }, [reload]);
   return <SafeAreaView style={styles.screen} edges={['top']}>
     <View style={styles.header}>
       <Pressable accessibilityRole="button" accessibilityLabel="Voltar" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/transacoes')}>
@@ -26,27 +26,31 @@ export default function ReflectionListScreen() {
       <Text style={styles.title}>Itens em reflexão</Text>
       <View style={styles.spacer} />
     </View>
-    <ScrollView contentContainerStyle={styles.content}>
-      {items.length === 0 && <Text style={styles.caption}>Nenhum item aguardando reflexão.</Text>}
+    <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />}>
+      <Text style={styles.caption}>Após a espera, confirme a decisão e preencha novamente os dados da compra, ou desista. Nenhuma compra é registrada automaticamente.</Text>
+      {(loading || error) && <AsyncState loading={loading} error={error} onRetry={reload} />}
+      {!!mutation.error && <AsyncState error={mutation.error} />}
+      {!loading && !error && items.length === 0 && <Text style={styles.caption}>Nenhum item aguardando reflexão.</Text>}
       {items.map((item) => {
-        const released = isReflectionReleased(item);
+        const released = item.liberado;
         return <AppCard key={item.id} style={styles.card}>
           <View style={styles.row}><IconPlayerPause size={24} color={colors.warning} />
-            <Text style={styles.name}>{item.transaction.description}</Text></View>
-          <Text style={styles.amount}>{formatCurrency(item.transaction.amountCents)}</Text>
-          <Text style={styles.caption}>Entrada: {new Date(item.enteredAt).toLocaleString('pt-BR')}</Text>
-          <Text style={styles.caption}>Liberação: {new Date(item.releaseAt).toLocaleString('pt-BR')} · {item.durationHours} h</Text>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: !released }} disabled={!released}
-            style={[styles.button, !released && styles.disabled]} onPress={() => {
-              try {
-                const transaction = finalizeReflectionItem(item.id);
-                router.replace({ pathname: '/transacao/[id]', params: { id: transaction.id } });
-              } catch (error) {
-                Alert.alert('Não foi possível concluir', error instanceof Error ? error.message : 'Tente novamente.');
-              }
-            }}>
-            <Text style={styles.buttonText}>{released ? 'Finalizar compra' : 'Aguarde o fim da reflexão'}</Text>
-          </Pressable>
+            <Text style={styles.name}>{item.descricao}</Text></View>
+          <Text style={styles.caption}>Entrada: {new Date(item.entradaEm).toLocaleString('pt-BR')}</Text>
+          <Text style={styles.caption}>Liberação: {new Date(item.liberaEm).toLocaleString('pt-BR')} · {item.duracaoHoras} h</Text>
+          <Text style={styles.caption}>{released ? 'Período concluído · escolha como continuar' : 'Aguarde o fim da reflexão'}</Text>
+          {released && <>
+            <Pressable accessibilityRole="button" disabled={mutation.busy} accessibilityState={{ disabled: mutation.busy }}
+              style={[styles.button, mutation.busy && styles.disabled]}
+              onPress={() => router.push({ pathname: '/transacao/nova', params: { reflectionItemId: item.id } })}>
+              <Text style={styles.buttonText}>Confirmar decisão</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" disabled={mutation.busy} accessibilityState={{ disabled: mutation.busy, busy: mutation.busy }}
+              style={[styles.button, styles.discard, mutation.busy && styles.disabled]}
+              onPress={() => mutation.run(() => discardRemoteReflectionItem(item.id), reload)}>
+              <Text style={styles.discardText}>{mutation.busy ? 'Aguarde…' : 'Desistir'}</Text>
+            </Pressable>
+          </>}
         </AppCard>;
       })}
     </ScrollView>
@@ -66,5 +70,7 @@ const styles = StyleSheet.create({
   caption: { fontFamily: fontFamily.regular, fontSize: fontSize.body, color: colors.textSecondary },
   button: { minHeight: 46, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
   disabled: { opacity: 0.5 },
+  discard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
+  discardText: { fontFamily: fontFamily.bold, fontSize: fontSize.body, color: colors.textSecondary },
   buttonText: { fontFamily: fontFamily.bold, fontSize: fontSize.body, color: colors.surface },
 });

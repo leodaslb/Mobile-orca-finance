@@ -23,12 +23,12 @@ function load(file) {
   return module.exports;
 }
 
-const transaction = load('src/services/transaction.service.ts');
-const reflection = load('src/services/reflection.service.ts');
-const recurrence = load('src/services/recurrence.service.ts');
-const { getDashboardData } = load('src/services/dashboard.service.ts');
-const { getReportData, generateFinancialExport } = load('src/services/report.service.ts');
-const { getMonthlyPlanningData } = load('src/services/planning.service.ts');
+const transaction = load('src/services/transaction.mock-service.ts');
+const reflection = load('src/services/reflection.mock-service.ts');
+const recurrence = load('src/services/recurrence.mock-service.ts');
+const { getDashboardData } = load('src/services/dashboard.mock-service.ts');
+const { getReportData, generateFinancialExport } = load('src/services/report.mock-service.ts');
+const { getMonthlyPlanningData } = load('src/services/planning.mock-service.ts');
 const { transactionsMock } = load('src/data/mocks/transactions.mock.ts');
 const { reflectionItemsMock } = load('src/data/mocks/reflection.mock.ts');
 const { recurrencesMock } = load('src/data/mocks/recurrences.mock.ts');
@@ -90,9 +90,9 @@ assert.equal(transactionsMock.some((row) => row.recurrenceId === rule.id && row.
 const beforeReverse = getDashboardData().balanceCents;
 const beforeReport = getReportData().totalCents;
 const beforePlanning = getMonthlyPlanningData().totalSpentCents;
-const target = transaction.getTransactionById(finalized.id);
-transaction.reverseTransaction(finalized.id, new Date('2026-10-10T10:00:00Z'));
-assert.equal(transaction.getTransactionById(finalized.id), undefined);
+const target = transaction.getMockTransactionById(finalized.id);
+transaction.reverseMockTransaction(finalized.id, new Date('2026-10-10T10:00:00Z'));
+assert.equal(transaction.getMockTransactionById(finalized.id), undefined);
 assert.equal(getDashboardData().balanceCents, beforeReverse + target.amountCents);
 assert.equal(getReportData().totalCents, beforeReport);
 assert.equal(getMonthlyPlanningData().totalSpentCents, beforePlanning);
@@ -128,11 +128,11 @@ assert.equal(transactionsMock.filter((row) => row.recurrenceId === monthEndRule.
 assert.equal(transactionsMock.find((row) => row.recurrenceId === monthEndRule.id && row.date === '2027-02-28').status, 'effective');
 
 // RN-AUD-01: um novo registro não pode herdar o ID de uma transação revertida.
-const lastCreated = transaction.createTransaction(input);
-transaction.reverseTransaction(lastCreated.id);
-const afterReversal = transaction.createTransaction(input);
+const lastCreated = transaction.createMockTransaction(input);
+transaction.reverseMockTransaction(lastCreated.id);
+const afterReversal = transaction.createMockTransaction(input);
 assert.notEqual(afterReversal.id, lastCreated.id);
-assert.equal(transaction.getTransactionById(lastCreated.id), undefined);
+assert.equal(transaction.getMockTransactionById(lastCreated.id), undefined);
 
 mockScenario.referenceDate = '2026-09-13';
 transactionsMock.splice(0, transactionsMock.length, ...JSON.parse(initialTransactions));

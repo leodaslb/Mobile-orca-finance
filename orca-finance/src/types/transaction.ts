@@ -1,3 +1,5 @@
+import type { ReceiptFile } from './receipt';
+
 export type TransactionType =
   | 'income'
   | 'expense';
@@ -21,10 +23,14 @@ export type PaymentMethod =
 
 export interface RecurrenceConfiguration {
   recurring: boolean;
-  frequency: 'monthly';
+  frequency: 'weekly' | 'monthly' | 'yearly';
   nextOccurrence: string | null;
+  endDate?: string | null;
+  description?: string;
+  amountCents?: number;
   reminder: boolean;
   dueDate: string | null;
+  reminderTime?: string | null;
 }
 
 export interface Transaction {
@@ -77,5 +83,6 @@ export interface CreateTransactionInput {
   essentiality?: Essentiality | null;
 
   receiptUri?: string | null;
+  receiptFile?: ReceiptFile | null;
   freeSpending?: boolean;
 }

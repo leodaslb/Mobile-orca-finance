@@ -25,16 +25,16 @@ function load(file) {
   return module.exports;
 }
 
-const auth = load('src/services/auth.service.ts');
-const security = load('src/services/security.service.ts');
+const auth = load('src/services/auth.mock-service.ts');
+const security = load('src/services/security.mock-service.ts');
 const { profilesMock } = load('src/data/mocks/profile.mock.ts');
-const { getDashboardData } = load('src/services/dashboard.service.ts');
-const { getTransactions } = load('src/services/transaction.service.ts');
-const { getSpendingLimitsConfiguration, getAvailablePlanningPeriods, getPlannedVsActualData } = load('src/services/planning.service.ts');
-const { getReportData, generateFinancialExport } = load('src/services/report.service.ts');
-const { getGoals } = load('src/services/goal.service.ts');
-const { getReflectionItems } = load('src/services/reflection.service.ts');
-const { getCategoriesWithSubcategories } = load('src/services/category.service.ts');
+const { getDashboardData } = load('src/services/dashboard.mock-service.ts');
+const { getMockTransactions } = load('src/services/transaction.mock-service.ts');
+const { getSpendingLimitsConfiguration, getAvailablePlanningPeriods, getPlannedVsActualData } = load('src/services/planning.mock-service.ts');
+const { getReportData, generateFinancialExport } = load('src/services/report.mock-service.ts');
+const { getGoals } = load('src/services/goal.mock-service.ts');
+const { getReflectionItems } = load('src/services/reflection.mock-service.ts');
+const { getCategoriesWithSubcategories } = load('src/services/category.mock-service.ts');
 
 assert.throws(() => auth.signUpLocal('', 'x@example.com', 'abc'), /Preencha/);
 assert.throws(() => auth.signUpLocal('Ana', 'inválido', 'abc'), /e-mail válido/);
@@ -47,7 +47,7 @@ assert.equal(profilesMock.at(-1).initialBalanceCents, 0);
 assert.equal(profilesMock.at(-1).currencyCode, 'BRL');
 assert.equal(getDashboardData().balanceCents, 0);
 assert.equal(getDashboardData().goal, null);
-assert.equal(getTransactions().length, 0);
+assert.equal(getMockTransactions().length, 0);
 assert.equal(getSpendingLimitsConfiguration().dailyLimitCents, 0);
 assert.deepEqual(getAvailablePlanningPeriods(), ['2026-09']);
 assert.equal(getPlannedVsActualData(getAvailablePlanningPeriods()[0]).totalSpentCents, 0);
@@ -81,5 +81,5 @@ assert.equal(security.checkLocalPin('1234'), false);
 
 auth.signInLocal('demo@orca.finance', 'demo1234');
 assert.equal(getDashboardData().balanceCents, 324080);
-assert.equal(getTransactions().length, 14);
+assert.equal(getMockTransactions().length, 14);
 console.log('PASS: cadastro/login mockado, perfil vazio isolado, PIN local, preferência e dados financeiros da demonstração.');

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, Matches, IsString, IsUUID } from 'class-validator';
 
 export class CreateSubcategoryDto {
   @IsUUID()
@@ -6,5 +6,6 @@ export class CreateSubcategoryDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/)
   nome!: string;
 }

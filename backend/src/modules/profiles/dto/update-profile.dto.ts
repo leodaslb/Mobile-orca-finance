@@ -1,7 +1,8 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, Matches, IsString } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/)
   nome!: string;
 }

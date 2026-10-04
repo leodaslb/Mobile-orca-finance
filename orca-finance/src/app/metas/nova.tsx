@@ -4,8 +4,8 @@ import {
   IconPigMoney,
   IconSun,
 } from '@tabler/icons-react-native';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -20,9 +20,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
-  calculateGoalSuggestion,
+  getGoalById,
   createGoal,
 } from '@/services/goal.service';
+import { AsyncState } from '@/components/common/AsyncState';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { useProfileMutation } from '@/hooks/useProfileMutation';
+import { useAppSession } from '@/contexts/AppSessionContext';
 import type { GoalSuggestionFrequency } from '@/types';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 import { formatCurrency, parseCurrencyToCents } from '@/utils/currency';
@@ -30,20 +34,21 @@ import { formatDateInput, parseBrazilianDateToISO } from '@/utils/date';
 
 export default function NewGoalScreen() {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [target, setTarget] = useState('');
-  const [deadline, setDeadline] = useState('');
-  const [frequency, setFrequency] = useState<GoalSuggestionFrequency>('daily');
+  const { editId } = useLocalSearchParams<{ editId?: string }>();
+  const { activeProfileId } = useAppSession();
+  const resource = useProfileResource(useCallback(() => editId ? getGoalById(editId) : Promise.resolve(null), [editId]));
+  if (resource.data === undefined) return <SafeAreaView style={styles.screen}><Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/metas')} style={styles.headerButton}><IconChevronLeft color={colors.primary} /></Pressable><AsyncState loading={resource.loading} error={resource.error} onRetry={resource.reload} /></SafeAreaView>;
+  return <>{!!resource.error && <AsyncState error={resource.error} onRetry={resource.reload} />}<GoalForm key={`${activeProfileId}:${editId ?? ''}`} initial={resource.data} editId={editId} /></>;
+}
+function GoalForm({ initial, editId }: { initial?: Awaited<ReturnType<typeof getGoalById>> | null; editId?: string }) {
+  const router = useRouter();
+  const [name, setName] = useState(initial?.name ?? '');
+  const [target, setTarget] = useState(initial ? formatCurrency(initial.targetCents) : '');
+  const [deadline, setDeadline] = useState(initial ? initial.deadline.split('-').reverse().join('/') : '');
+  const [frequency, setFrequency] = useState<GoalSuggestionFrequency>(initial?.suggestionFrequency ?? 'daily');
   const parsedTarget = parseCurrencyToCents(target);
   const parsedDeadline = parseBrazilianDateToISO(deadline);
-  const suggestion = useMemo(() => parsedTarget && parsedDeadline
-    ? calculateGoalSuggestion({
-      targetCents: parsedTarget,
-      currentCents: 0,
-      deadline: parsedDeadline,
-      frequency,
-    })
-    : null, [frequency, parsedDeadline, parsedTarget]);
+  const mutation = useProfileMutation();
   const goBack = () => router.canGoBack()
     ? router.back()
     : router.replace('/metas');
@@ -53,18 +58,9 @@ export default function NewGoalScreen() {
       Alert.alert('Revise a meta', 'Informe valor-alvo e data-limite válidos.');
       return;
     }
-    try {
-      const goal = createGoal({
-        name,
-        targetCents: parsedTarget,
-        deadline: parsedDeadline,
-        suggestionFrequency: frequency,
-      });
-      router.replace({ pathname: '/metas/[id]', params: { id: goal.id } });
-    } catch (error) {
-      Alert.alert('Não foi possível criar',
-        error instanceof Error ? error.message : 'Tente novamente.');
-    }
+    if (!name.trim() || parsedTarget <= 0) { Alert.alert('Revise a meta', 'Informe nome e valor positivo.'); return; }
+    void mutation.run(() => createGoal({ name, targetCents: parsedTarget, deadline: parsedDeadline, suggestionFrequency: frequency }, editId),
+      goal => router.replace({ pathname: '/metas/[id]', params: { id: goal.id } }));
   };
 
   return <SafeAreaView style={styles.screen}>
@@ -75,21 +71,21 @@ export default function NewGoalScreen() {
           accessibilityRole="button" accessibilityLabel="Voltar">
           <IconChevronLeft size={25} color={colors.navInactive} />
         </Pressable>
-        <Text style={styles.title}>Nova meta</Text>
+        <Text style={styles.title}>{editId ? 'Editar meta' : 'Nova meta'}</Text>
         <View style={styles.headerButton} />
       </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Nome da meta</Text>
-        <TextInput value={name} onChangeText={setName} placeholder="Ex.: Viagem"
+        <TextInput editable={!mutation.busy} value={name} onChangeText={setName} placeholder="Ex.: Viagem"
           placeholderTextColor={colors.navInactive} style={styles.input} />
         <Text style={styles.label}>Valor alvo</Text>
-        <TextInput value={target} onChangeText={setTarget} placeholder="R$ 0,00"
+        <TextInput editable={!mutation.busy} value={target} onChangeText={setTarget} placeholder="R$ 0,00"
           placeholderTextColor={colors.navInactive} keyboardType="decimal-pad"
           style={styles.input} />
         <Text style={styles.label}>Data limite</Text>
         <View style={styles.inputWithIcon}>
           <IconCalendar size={22} color={colors.navInactive} />
-          <TextInput value={deadline} onChangeText={(text) => setDeadline(formatDateInput(text))}
+          <TextInput editable={!mutation.busy} value={deadline} onChangeText={(text) => setDeadline(formatDateInput(text))}
             placeholder="DD/MM/AAAA" placeholderTextColor={colors.navInactive}
             keyboardType="number-pad" maxLength={10} style={styles.iconInput} />
         </View>
@@ -114,17 +110,14 @@ export default function NewGoalScreen() {
           <View style={styles.flex}>
             <Text style={styles.suggestionTitle}>Sugestão de economia</Text>
             <Text style={styles.suggestionValue}>
-              {suggestion === null
-                ? 'Preencha valor e data'
-                : `${formatCurrency(suggestion)} por ${
-                  frequency === 'daily' ? 'dia' : 'semana'
-                }`}
+              A sugestão será calculada após salvar a meta.
             </Text>
             <Text style={styles.helper}>Calculada pelo valor restante e pela data limite.</Text>
           </View>
         </View>
-        <Pressable onPress={submit} style={styles.primaryButton} accessibilityRole="button">
-          <Text style={styles.primaryText}>Criar meta</Text>
+        {!!mutation.error && <Text accessibilityRole="alert" style={styles.helper}>{mutation.error}</Text>}
+        <Pressable disabled={mutation.busy} onPress={submit} style={styles.primaryButton} accessibilityRole="button">
+          <Text style={styles.primaryText}>{mutation.busy ? 'Salvando…' : editId ? 'Salvar meta' : 'Criar meta'}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

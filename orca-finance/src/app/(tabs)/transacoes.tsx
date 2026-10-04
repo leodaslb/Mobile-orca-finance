@@ -1,12 +1,15 @@
 import { TransactionFiltersSheet } from '@/components/domain/TransactionFiltersSheet';
 import { TransactionItem } from '@/components/domain/TransactionItem';
-import { getTransactionCategories, getTransactionSections } from '@/services/transaction.service';
-import { getReflectionItems } from '@/services/reflection.service';
+import { getTransactions, groupTransactions, type TransactionFilters } from '@/services/transaction.service';
+import { getTransactionCatalog } from '@/services/category.service';
+import { getRemoteReflectionItems } from '@/services/reflection.service';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { AsyncState } from '@/components/common/AsyncState';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 import { IconAdjustmentsHorizontal, IconCalendar, IconCategory, IconPlayerPause, IconSearch, IconTag, IconX } from '@tabler/icons-react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Keyboard, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Keyboard, Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TransacoesScreen() {
@@ -14,28 +17,23 @@ export default function TransacoesScreen() {
   const [query, setQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [reflectionOnly, setReflectionOnly] = useState(false);
-  const [dataRevision, setDataRevision] = useState(0);
+  const [filters, setFilters] = useState<TransactionFilters>({});
   const closeFilters = () => setFiltersOpen(false);
   const openFilters = () => { Keyboard.dismiss(); setFiltersOpen(true); };
-
-  useFocusEffect(
-    useCallback(() => {
-      setDataRevision((current) => current + 1);
-    }, []),
-  );
-
-  const sections = useMemo(
-    () => getTransactionSections(query),
-    [dataRevision, query],
-  );
-  const reflectionItems = useMemo(() => reflectionOnly
-    ? getReflectionItems(query)
-    : [], [dataRevision, query, reflectionOnly]);
-  const categoryNames = useMemo(() => new Map(getTransactionCategories()
-    .map((category) => [category.id, category.name])), []);
+  const load = useCallback(async () => {
+    const [transactions, catalog, reflections] = await Promise.all([
+      getTransactions(query, filters), getTransactionCatalog(),
+      reflectionOnly ? getRemoteReflectionItems() : Promise.resolve([]),
+    ]);
+    return { transactions, catalog, reflections };
+  }, [query, filters, reflectionOnly]);
+  const { data, loading, refreshing, error, reload } = useProfileResource(load);
+  const sections = groupTransactions(data?.transactions ?? []);
+  const reflectionItems = data?.reflections.filter(item => item.descricao.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))) ?? [];
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <SectionList
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} colors={[colors.primary]} />}
         sections={reflectionOnly ? [] : sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
@@ -80,25 +78,22 @@ export default function TransacoesScreen() {
             </View>
             {reflectionOnly && reflectionItems.length > 0 && <View style={styles.reflectionResults}>
               <Text style={styles.sectionTitle}>AGUARDANDO REFLEXÃO</Text>
-              {reflectionItems.map((item) => <TransactionItem key={item.id}
-                description={item.transaction.description} categoryId={item.transaction.categoryId}
-                categoryName={categoryNames.get(item.transaction.categoryId ?? '') ?? 'Sem categoria'}
-                amountCents={item.transaction.amountCents} type="expense" status="reflection"
-                variant="list" onPress={() => router.push('/reflexao')} />)}
+              {reflectionItems.map(item => <Pressable key={item.id} accessibilityRole="button" onPress={() => router.push('/reflexao')}><Text style={styles.empty}>{item.descricao} ? {item.liberado ? 'Liberado' : 'Em espera'}</Text></Pressable>)}
             </View>}
           </View>
         }
         renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title.toLocaleUpperCase('pt-BR')}</Text>}
         renderItem={({ item }) => <TransactionItem {...item} variant="list"
           onPress={() => router.push({ pathname: '/transacao/[id]', params: { id: item.id } })} />}
-        ListEmptyComponent={reflectionOnly
+        ListEmptyComponent={loading || error ? <AsyncState loading={loading} error={error} onRetry={reload} /> : reflectionOnly
           ? reflectionItems.length === 0
             ? <Text style={styles.empty}>Nenhum item em reflexão encontrado.</Text>
             : null
           : <Text style={styles.empty}>Nenhuma transação encontrada.</Text>}
       />
       <TransactionFiltersSheet visible={filtersOpen} onCancel={closeFilters}
-        onApply={closeFilters} onClear={closeFilters} />
+        value={filters} categories={data?.catalog.categories ?? []}
+        onApply={value => { setFilters(value); closeFilters(); }} onClear={() => { setFilters({}); closeFilters(); }} />
     </SafeAreaView>
   );
 }

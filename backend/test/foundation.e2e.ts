@@ -45,6 +45,7 @@ describe('Fundação funcional HTTP → PostgreSQL', () => {
         });
         const profileIds = profiles.map((profile) => profile.id);
         await prisma.transacao.deleteMany({ where: { perfilId: { in: profileIds } } });
+        await prisma.auditoriaTransacao.deleteMany({ where: { perfilId: { in: profileIds } } });
         await prisma.subcategoria.deleteMany({ where: { perfilId: { in: profileIds } } });
         await prisma.perfilFinanceiro.deleteMany({ where: { usuarioId: { in: ids } } });
         await prisma.usuario.deleteMany({ where: { id: { in: ids } } });
@@ -230,7 +231,6 @@ describe('Fundação funcional HTTP → PostgreSQL', () => {
     expect((await app.inject({ method: 'GET', url: `${urlA}/${idB}`, headers: auth(tokenA) })).statusCode).toBe(404);
     expect((await app.inject({ method: 'PATCH', url: `${urlB}/${idB}`, headers: auth(tokenA), payload: { descricao: 'Invasão' } })).statusCode).toBe(403);
     expect((await app.inject({ method: 'PATCH', url: `${urlA}/${idB}`, headers: auth(tokenA), payload: { descricao: 'Invasão' } })).statusCode).toBe(404);
-    expect((await app.inject({ method: 'DELETE', url: `${urlA}/${idA}`, headers: auth(tokenA) })).statusCode).toBe(404);
 
     const filter = async (query: string) => (await app.inject({ method: 'GET', url: `${urlA}?${query}`, headers: auth(tokenA) })).json();
     for (const query of [

@@ -1,12 +1,6 @@
-import {
-    IconCar,
-    IconChevronRight,
-    IconDots,
-    IconHome,
-    IconShoppingCart,
-    IconTicket,
-    IconWallet,
-} from '@tabler/icons-react-native';
+import { categoryPresentation } from '@/utils/category-presentation';
+import { CategoryIcon } from '@/components/common/CategoryIcon';
+import { IconChevronRight } from '@tabler/icons-react-native';
 
 import {
     Pressable,
@@ -52,89 +46,7 @@ export function TransactionItem({
 }: TransactionItemProps) {
   const isExpense = type === 'expense';
 
-  const iconCategory = categoryId?.replace(/^category-/, '');
-
-  function renderIcon() {
-    if (type === 'income') {
-      return (
-        <IconWallet
-          size={22}
-          color={colors.positive}
-          strokeWidth={2}
-        />
-      );
-    }
-
-    switch (iconCategory) {
-      case 'food':
-        return (
-          <IconShoppingCart
-            size={22}
-            color={colors.categories.food.icon}
-            strokeWidth={2}
-          />
-        );
-
-      case 'transport':
-        return (
-          <IconCar
-            size={22}
-            color={colors.categories.transport.icon}
-            strokeWidth={2}
-          />
-        );
-
-      case 'housing':
-        return (
-          <IconHome
-            size={22}
-            color={colors.categories.housing.icon}
-            strokeWidth={2}
-          />
-        );
-
-      case 'leisure':
-        return (
-          <IconTicket
-            size={22}
-            color={colors.categories.leisure.icon}
-            strokeWidth={2}
-          />
-        );
-
-      default:
-        return (
-          <IconDots
-            size={22}
-            color={colors.textSecondary}
-            strokeWidth={2}
-          />
-        );
-    }
-  }
-
-  function getIconBackground() {
-    if (type === 'income') {
-      return colors.positiveTint;
-    }
-
-    switch (iconCategory) {
-      case 'food':
-        return colors.categories.food.background;
-
-      case 'transport':
-        return colors.categories.transport.background;
-
-      case 'housing':
-        return colors.categories.housing.background;
-
-      case 'leisure':
-        return colors.categories.leisure.background;
-
-      default:
-        return colors.background;
-    }
-  }
+  const appearance = categoryPresentation(categoryName);
 
   return (
     <Pressable
@@ -156,11 +68,11 @@ export function TransactionItem({
             styles.listIcon,
           {
             backgroundColor:
-              getIconBackground(),
+              appearance.background,
           },
         ]}
       >
-        {renderIcon()}
+        <CategoryIcon name={categoryName} />
       </View>
 
       <View style={styles.info}>

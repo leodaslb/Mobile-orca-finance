@@ -1,9 +1,10 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, Matches, IsOptional, IsString } from 'class-validator';
 
 export class UpdateSubcategoryDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/)
   nome?: string;
 
   @IsOptional()

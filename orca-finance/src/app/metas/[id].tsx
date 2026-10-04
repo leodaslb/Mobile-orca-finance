@@ -1,13 +1,12 @@
 import {
-  IconArrowUp,
   IconCalendar,
   IconChevronLeft,
   IconPigMoney,
   IconTargetArrow,
   IconX,
 } from '@tabler/icons-react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -15,6 +14,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -22,12 +22,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AsyncState } from '@/components/common/AsyncState';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { useProfileMutation } from '@/hooks/useProfileMutation';
+import { useAppSession } from '@/contexts/AppSessionContext';
+import { localDate } from '@/utils/date';
 import { AppCard } from '@/components/common/AppCard';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import {
   addGoalContribution,
-  getGoalById,
-  getGoalReferenceDate,
+  getGoalDetail,
   updateGoalDeadline,
 } from '@/services/goal.service';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
@@ -42,14 +46,13 @@ function isoToBrazilian(date: string) {
 export default function GoalDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const [revision, setRevision] = useState(0);
+  const { activeProfileId } = useAppSession();
+  const resource = useProfileResource(useCallback(() => getGoalDetail(id ?? ''), [id]));
+  const goal = resource.data?.goal;
   const [contributionOpen, setContributionOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [newDeadline, setNewDeadline] = useState('');
-  useFocusEffect(useCallback(() => {
-    setRevision((current) => current + 1);
-  }, []));
-  const goal = useMemo(() => id ? getGoalById(id) : undefined, [id, revision]);
+  const mutation = useProfileMutation();
   const goBack = () => router.canGoBack() ? router.back() : router.replace('/metas');
 
   if (!goal) {
@@ -61,7 +64,7 @@ export default function GoalDetailScreen() {
         <Text style={styles.title}>Detalhes da meta</Text>
         <View style={styles.headerButton} />
       </View>
-      <Text style={styles.notFound}>Meta não encontrada.</Text>
+      <AsyncState loading={resource.loading} error={resource.error} onRetry={resource.reload} />
     </SafeAreaView>;
   }
 
@@ -74,7 +77,8 @@ export default function GoalDetailScreen() {
       <Text style={styles.title}>Detalhes da meta</Text>
       <View style={styles.headerButton} />
     </View>
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView refreshControl={<RefreshControl refreshing={resource.refreshing} onRefresh={resource.reload} />} contentContainerStyle={styles.content}>
+      {!!resource.error && <AsyncState error={resource.error} onRetry={resource.reload} />}
       <AppCard style={styles.goalCard}>
         <View style={styles.goalTop}>
           <View style={styles.goalIcon}>
@@ -84,6 +88,7 @@ export default function GoalDetailScreen() {
             <Text style={styles.goalName}>{goal.name}</Text>
             <Text style={styles.current}>{formatCurrency(goal.currentCents)}</Text>
             <Text style={styles.target}>de {formatCurrency(goal.targetCents)}</Text>
+            <Text style={styles.target}>{goal.achieved ? 'Meta atingida' : `Restante: ${formatCurrency(goal.remainingCents)}`}</Text>
           </View>
         </View>
         <View style={styles.progressRow}>
@@ -124,61 +129,48 @@ export default function GoalDetailScreen() {
           <Text style={styles.deadlineButtonText}>Alterar data-limite</Text>
         </Pressable>
       </AppCard>}
-      <Text style={styles.sectionTitle}>Últimos aportes</Text>
-      <AppCard style={styles.contributionsCard}>
-        {goal.contributions.length === 0 && <Text style={styles.target}>
-          Nenhum aporte registrado.
-        </Text>}
-        {goal.contributions.map((contribution, index) => <View key={contribution.id}
-          style={[styles.contribution, index > 0 && styles.contributionDivider]}>
-          <View style={styles.contributionIcon}>
-            <IconArrowUp size={23} color={colors.positive} />
-          </View>
+      <AppCard>
+        <Text style={styles.sectionTitle}>Histórico de aportes</Text>
+        {!resource.data?.contributions.length && <Text style={styles.target}>Nenhum aporte registrado. Registre o primeiro para acompanhar sua meta.</Text>}
+        {resource.data?.contributions.map(item => <View key={item.id} style={styles.historyRow}>
+          <IconPigMoney size={22} color={colors.positive} />
           <View style={styles.flex}>
-            <Text style={styles.contributionAmount}>
-              {formatCurrency(contribution.amountCents)}
-            </Text>
-            <Text style={styles.target}>Aporte na meta</Text>
+            <Text style={styles.metaValue}>{formatCurrency(item.amountCents)}</Text>
+            <Text style={styles.target}>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.timestamp))}</Text>
           </View>
-          <Text style={styles.contributionDate}>
-            {formatTransactionDate(contribution.date)}
-          </Text>
         </View>)}
       </AppCard>
+      <Pressable onPress={() => router.push({ pathname: '/metas/nova', params: { editId: goal.id } })} style={styles.deadlineButton}><Text style={styles.deadlineButtonText}>Editar meta</Text></Pressable>
       <Pressable onPress={() => setContributionOpen(true)}
         style={styles.primaryButton} accessibilityRole="button">
         <Text style={styles.primaryText}>Registrar aporte</Text>
       </Pressable>
     </ScrollView>
-    <ContributionSheet visible={contributionOpen} goalId={goal.id}
+    <ContributionSheet key={`${activeProfileId}:${goal.id}`} visible={contributionOpen} goalId={goal.id}
       onClose={() => setContributionOpen(false)}
       onSaved={() => {
         setContributionOpen(false);
-        setRevision((current) => current + 1);
+        resource.reload();
       }} />
-    <Modal visible={deadlineOpen} transparent animationType="slide" onRequestClose={() => setDeadlineOpen(false)}>
+    <Modal visible={deadlineOpen} transparent animationType="slide" onRequestClose={() => { if (!mutation.busy) setDeadlineOpen(false); }}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={styles.backdrop} onPress={() => setDeadlineOpen(false)} />
+        <Pressable style={styles.backdrop} onPress={() => { if (!mutation.busy) setDeadlineOpen(false); }} />
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sectionTitle}>Alterar data-limite</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Fechar" onPress={() => setDeadlineOpen(false)}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Fechar" onPress={() => { if (!mutation.busy) setDeadlineOpen(false); }}>
               <IconX size={22} color={colors.textSecondary} />
             </Pressable>
           </View>
+          {!!mutation.error && <Text accessibilityRole="alert" style={styles.target}>{mutation.error}</Text>}
           <Text style={styles.target}>Seus aportes serão preservados. A sugestão será recalculada.</Text>
           <TextInput style={styles.input} value={newDeadline} onChangeText={(text) => setNewDeadline(formatDateInput(text))}
             keyboardType="number-pad" maxLength={10} placeholder="dd/mm/aaaa" placeholderTextColor={colors.navInactive} />
-          <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={() => {
+          <Pressable accessibilityRole="button" style={styles.primaryButton} disabled={mutation.busy} onPress={() => {
             const date = parseBrazilianDateToISO(newDeadline);
-            try {
-              updateGoalDeadline(goal.id, date ?? '');
-              setDeadlineOpen(false);
-              setRevision((current) => current + 1);
-            } catch (error) {
-              Alert.alert('Data inválida', error instanceof Error ? error.message : 'Tente novamente.');
-            }
-          }}><Text style={styles.primaryText}>Salvar nova data</Text></Pressable>
+            if (!date) { Alert.alert('Data inválida', 'Informe uma data válida.'); return; }
+            void mutation.run(() => updateGoalDeadline(goal.id, date), () => { setDeadlineOpen(false); resource.reload(); });
+          }}><Text style={styles.primaryText}>{mutation.busy ? 'Salvando…' : 'Salvar nova data'}</Text></Pressable>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -189,7 +181,9 @@ function ContributionSheet(props: {
   visible: boolean; goalId: string; onClose: () => void; onSaved: () => void;
 }) {
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(isoToBrazilian(getGoalReferenceDate()));
+  const [date, setDate] = useState(isoToBrazilian(localDate()));
+  const mutation = useProfileMutation();
+  const close = () => { if (!mutation.busy) props.onClose(); };
   const submit = () => {
     const amountCents = parseCurrencyToCents(amount);
     const isoDate = parseBrazilianDateToISO(date);
@@ -197,27 +191,24 @@ function ContributionSheet(props: {
       Alert.alert('Revise o aporte', 'Informe valor e data válidos.');
       return;
     }
-    try {
-      addGoalContribution({ goalId: props.goalId, amountCents, date: isoDate });
-      setAmount('');
-      props.onSaved();
-    } catch (error) {
-      Alert.alert('Não foi possível registrar',
-        error instanceof Error ? error.message : 'Tente novamente.');
-    }
+    if (amountCents <= 0) { Alert.alert('Revise o aporte', 'Informe valor positivo.'); return; }
+    void mutation.run(() => addGoalContribution({ goalId: props.goalId, amountCents, date: isoDate }), () => {
+      setAmount(''); props.onSaved();
+    });
   };
   return <Modal visible={props.visible} transparent animationType="slide"
-    onRequestClose={props.onClose}>
+    onRequestClose={close}>
     <KeyboardAvoidingView style={styles.overlay}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Pressable style={styles.backdrop} onPress={props.onClose} />
+      <Pressable style={styles.backdrop} onPress={close} />
       <View style={styles.sheet}>
         <View style={styles.sheetHeader}>
           <Text style={styles.sectionTitle}>Registrar aporte</Text>
-          <Pressable onPress={props.onClose} style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Fechar aporte">
+          <Pressable onPress={close} style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Fechar aporte">
             <IconX size={22} color={colors.textSecondary} />
           </Pressable>
         </View>
+        {!!mutation.error && <Text accessibilityRole="alert" style={styles.target}>{mutation.error}</Text>}
         <Text style={styles.inputLabel}>Valor</Text>
         <TextInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad"
           placeholder="R$ 0,00" placeholderTextColor={colors.navInactive}
@@ -225,8 +216,8 @@ function ContributionSheet(props: {
         <Text style={styles.inputLabel}>Data</Text>
         <TextInput value={date} onChangeText={(text) => setDate(formatDateInput(text))} keyboardType="number-pad"
           maxLength={10} style={styles.input} />
-        <Pressable onPress={submit} style={styles.primaryButton} accessibilityRole="button">
-          <Text style={styles.primaryText}>Confirmar aporte</Text>
+        <Pressable disabled={mutation.busy} onPress={submit} style={styles.primaryButton} accessibilityRole="button">
+          <Text style={styles.primaryText}>{mutation.busy ? 'Registrando…' : 'Confirmar aporte'}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -234,6 +225,7 @@ function ContributionSheet(props: {
 }
 
 const styles = StyleSheet.create({
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', paddingHorizontal: spacing.md },

@@ -1,8 +1,9 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,7 +19,9 @@ import { FinancialSummaryCard } from '@/components/domain/FinancialSummaryCard';
 import { GoalCard } from '@/components/domain/GoalCard';
 import { TransactionItem } from '@/components/domain/TransactionItem';
 
-import { getDashboardData } from '@/services/dashboard.service';
+import { getRemoteDashboardData, getRemoteCategorySpending } from '@/services/dashboard.service';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { AsyncState } from '@/components/common/AsyncState';
 
 import {
   colors,
@@ -31,22 +34,18 @@ import {
 import {
   formatDashboardDate,
   formatTransactionDateTime,
+  localDate,
 } from '@/utils/date';
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const [dataRevision, setDataRevision] = useState(0);
-
-  useFocusEffect(
-    useCallback(() => {
-      setDataRevision((current) => current + 1);
-    }, []),
-  );
-
-  const data = useMemo(
-    () => getDashboardData(),
-    [dataRevision],
-  );
+  const [categoryPeriod, setCategoryPeriod] = useState(localDate().slice(0, 7));
+  const spending = useProfileResource(useCallback(() => getRemoteCategorySpending(categoryPeriod), [categoryPeriod]));
+  const load = useCallback(() => getRemoteDashboardData(new Date(), false), []);
+  const { data, loading, refreshing, error, reload } = useProfileResource(load);
+  if (!data) return <SafeAreaView style={styles.safeArea}><AsyncState loading={loading} error={error} onRetry={reload} />
+    <Pressable accessibilityRole="button" onPress={() => router.push('/configuracoes')}><Text style={styles.seeAll}>Perfil e configurações</Text></Pressable>
+  </SafeAreaView>;
   const goal = data.goal;
   return (
     <SafeAreaView
@@ -54,10 +53,12 @@ export default function DashboardScreen() {
       edges={['top']}
     >
       <ScrollView
+        refreshControl={<RefreshControl refreshing={refreshing || spending.refreshing} onRefresh={() => { reload(); spending.reload(); }} colors={[colors.primary]} />}
         style={styles.screen}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {!!error && <AsyncState error={error} onRetry={reload} />}
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.date}>
@@ -98,7 +99,8 @@ export default function DashboardScreen() {
         />
 
         <CategorySpendingCard
-          items={data.expensesByCategory}
+          items={spending.data ?? []} period={categoryPeriod} onPeriodChange={setCategoryPeriod}
+          loading={spending.loading} refreshing={spending.refreshing} error={spending.error} onRetry={spending.reload}
         />
 
         {goal ? <GoalCard
@@ -106,14 +108,8 @@ export default function DashboardScreen() {
           currentCents={goal.currentCents}
           targetCents={goal.targetCents}
           progress={goal.progress}
-          onPress={() =>
-            router.push({
-              pathname: '/metas/[id]',
-              params: {
-                id: goal.id,
-              },
-            })
-          }
+          onPress={() => router.push({ pathname: '/metas/[id]', params: { id: goal.id } })}
+
         /> : <AppCard><Text style={styles.emptyText}>Você ainda não criou metas para este perfil.</Text></AppCard>}
 
         <AppCard style={styles.transactionsCard}>

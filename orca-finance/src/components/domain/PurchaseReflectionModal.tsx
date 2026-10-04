@@ -1,9 +1,6 @@
-import {
-  IconArrowLeft,
-  IconInfoCircle,
-  IconPlayerPause,
-  IconShoppingCart,
-} from '@tabler/icons-react-native';
+
+import { CategoryIcon } from '@/components/common/CategoryIcon';
+import { IconArrowLeft, IconInfoCircle, IconPlayerPause } from '@tabler/icons-react-native';
 import {
   useState,
 } from 'react';
@@ -82,7 +79,7 @@ export function PurchaseReflectionModal({
               <Text style={styles.amount}>{formatCurrency(transaction.amountCents)}</Text>
               <View style={styles.categoryRow}>
                 <View style={styles.categoryIcon}>
-                  <IconShoppingCart size={22} color={colors.categories.food.icon} />
+                  <CategoryIcon name={categoryName} />
                 </View>
                 <Text style={styles.category}>{categoryName}</Text>
               </View>
@@ -91,7 +88,8 @@ export function PurchaseReflectionModal({
             <View style={styles.infoRow}>
               <IconInfoCircle size={24} color={colors.textSecondary} />
               <Text style={styles.infoText}>
-                O item ficará aguardando pelo período de reflexão configurado.
+                {reflectionAvailable ? 'Serão guardados a descrição e o período de espera. Depois da liberação, você poderá preencher os demais dados novamente para confirmar a compra.'
+                  : 'Você pode revisar os dados ou finalizar a compra agora. A compra só será registrada depois da confirmação.'}
               </Text>
             </View>
           </View>
@@ -116,7 +114,7 @@ export function PurchaseReflectionModal({
             accessibilityHint={
               reflectionAvailable
                 ? undefined
-                : 'Indisponível enquanto a duração e a lista de reflexão não estiverem definidas.'
+                : 'Para iniciar outro período de reflexão, abra um novo cadastro.'
             }
             accessibilityRole="button"
             accessibilityState={{ disabled: !reflectionAvailable }}

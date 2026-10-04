@@ -1,201 +1,56 @@
-import { IconChevronDown } from '@tabler/icons-react-native';
-
-import {
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
-
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppCard } from '@/components/common/AppCard';
+import { AsyncState } from '@/components/common/AsyncState';
+import { CategoryIcon } from '@/components/common/CategoryIcon';
+import { MonthSelector } from '@/components/common/MonthSelector';
+import { categoryPresentation } from '@/utils/category-presentation';
+import { formatCurrency } from '@/utils/currency';
+import { localDate } from '@/utils/date';
+import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 
-import {
-    colors,
-    fontFamily,
-    fontSize,
-    radius,
-    spacing,
-} from '@/theme';
-
-interface CategorySpendingItem {
-  categoryId: string;
-  categoryName: string;
-  totalCents: number;
+interface Props {
+  items: { categoryId: string; categoryName: string; totalCents: number }[];
+  period: string; onPeriodChange: (period: string) => void;
+  loading?: boolean; refreshing?: boolean; error?: string; onRetry: () => void;
 }
 
-interface CategorySpendingCardProps {
-  items: CategorySpendingItem[];
-}
-
-function getCategoryColor(categoryId: string): string {
-  switch (categoryId) {
-    case 'category-food':
-      return colors.chart.food;
-
-    case 'category-housing':
-      return colors.chart.housing;
-
-    case 'category-transport':
-      return colors.chart.transport;
-
-    case 'category-leisure':
-      return colors.chart.leisure;
-
-    default:
-      return colors.chart.other;
-  }
-}
-
-export function CategorySpendingCard({
-  items,
-}: CategorySpendingCardProps) {
-  const maxValue = Math.max(
-    ...items.map((item) => item.totalCents),
-    0
-  );
-
-  return (
-    <AppCard style={styles.card}>
-      <View style={styles.header}>
-        <Text style={styles.title}>
-          Gastos por categoria
-        </Text>
-
-        <View style={styles.period}>
-          <Text style={styles.periodText}>
-            Este mês
-          </Text>
-
-          <IconChevronDown
-            size={15}
-            color={colors.textSecondary}
-            strokeWidth={2}
-          />
-        </View>
-      </View>
-
+export function CategorySpendingCard({ items, period, onPeriodChange, loading, refreshing, error, onRetry }: Props) {
+  const currentMonth = localDate().slice(0, 7);
+  const maxValue = Math.max(...items.map(item => item.totalCents), 0);
+  return <AppCard style={styles.card}>
+    <Text style={styles.title}>Gastos por categoria</Text>
+    <MonthSelector value={period} onChange={onPeriodChange} />
+    {period !== currentMonth && <Pressable accessibilityRole="button" onPress={() => onPeriodChange(currentMonth)} style={styles.currentMonth}>
+      <Text style={styles.link}>Voltar ao mês atual</Text>
+    </Pressable>}
+    {(loading || refreshing || error) && <AsyncState loading={loading || refreshing} error={error} onRetry={onRetry} />}
+    {!loading && !items.length && !error && <Text style={styles.empty}>Sem despesas efetivadas neste mês.</Text>}
+    {!loading && !!items.length && <ScrollView horizontal showsHorizontalScrollIndicator={false}>
       <View style={styles.chart}>
-        {items.map((item) => {
-          const ratio =
-            maxValue === 0
-              ? 0
-              : item.totalCents / maxValue;
-
-          const percentage = Math.max(
-            ratio * 100,
-            8
-          );
-
-          return (
-            <View
-              key={item.categoryId}
-              style={styles.column}
-            >
-              <View style={styles.barArea}>
-                <View
-                  style={[
-                    styles.bar,
-                    {
-                      height: `${percentage}%`,
-                      backgroundColor:
-                        getCategoryColor(
-                          item.categoryId
-                        ),
-                    },
-                  ]}
-                />
-              </View>
-
-              <Text
-                numberOfLines={1}
-                style={styles.label}
-              >
-                {item.categoryName}
-              </Text>
-            </View>
-          );
-        })}
+        {items.map(item => <View key={item.categoryId} style={styles.column} accessibilityLabel={`${item.categoryName}: ${formatCurrency(item.totalCents)}`}>
+          <Text numberOfLines={1} style={styles.value}>{formatCurrency(item.totalCents)}</Text>
+          <View style={styles.barArea}><View style={[styles.bar, {
+            height: `${maxValue ? Math.max(item.totalCents / maxValue * 100, 3) : 0}%`,
+            backgroundColor: categoryPresentation(item.categoryName).chart,
+          }]} /></View>
+          <CategoryIcon name={item.categoryName} size={20} />
+          <Text numberOfLines={2} style={styles.label}>{item.categoryName}</Text>
+        </View>)}
       </View>
-    </AppCard>
-  );
+    </ScrollView>}
+  </AppCard>;
 }
 
 const styles = StyleSheet.create({
-  card: {
-    paddingBottom: spacing.md,
-  },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  title: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.title,
-    color: colors.textPrimary,
-  },
-
-  period: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-
-  periodText: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.body,
-    color: colors.textSecondary,
-  },
-
-  chart: {
-    height: 138,
-
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-
-    marginTop: spacing.lg,
-
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-  },
-
-  column: {
-    flex: 1,
-
-    height: '100%',
-
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-
-  barArea: {
-    flex: 1,
-
-    width: '100%',
-
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-
-  bar: {
-    width: '62%',
-    maxWidth: 42,
-
-    borderTopLeftRadius: radius.icon,
-    borderTopRightRadius: radius.icon,
-  },
-
-  label: {
-    width: '100%',
-
-    marginTop: spacing.sm,
-
-    textAlign: 'center',
-
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.caption,
-
-    color: colors.textSecondary,
-  },
+  card: { paddingBottom: spacing.md, gap: spacing.sm },
+  title: { fontFamily: fontFamily.bold, fontSize: fontSize.title, color: colors.textPrimary },
+  currentMonth: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+  link: { fontFamily: fontFamily.medium, fontSize: fontSize.caption, color: colors.primary },
+  empty: { fontFamily: fontFamily.regular, color: colors.textSecondary, paddingVertical: spacing.lg, textAlign: 'center' },
+  chart: { height: 210, flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, paddingTop: spacing.sm },
+  column: { width: 88, height: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm },
+  barArea: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'flex-end' },
+  bar: { width: 42, borderTopLeftRadius: radius.icon, borderTopRightRadius: radius.icon },
+  label: { height: 36, width: '100%', textAlign: 'center', fontFamily: fontFamily.regular, fontSize: fontSize.caption, color: colors.textSecondary },
+  value: { fontFamily: fontFamily.medium, fontSize: fontSize.caption, color: colors.textPrimary },
 });

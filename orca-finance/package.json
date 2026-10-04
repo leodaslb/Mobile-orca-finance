@@ -8,12 +8,17 @@
     "@tabler/icons-react-native": "^3.47.0",
     "expo": "~57.0.24",
     "expo-constants": "~57.0.19",
+    "expo-crypto": "~57.0.3",
     "expo-device": "~57.0.2",
+    "expo-file-system": "57.0.7",
     "expo-font": "~57.0.4",
     "expo-glass-effect": "~57.0.3",
     "expo-image": "~57.0.5",
+    "expo-image-picker": "~57.0.20",
     "expo-linking": "~57.0.10",
+    "expo-local-authentication": "~57.0.3",
     "expo-router": "~57.0.22",
+    "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.3",
@@ -40,7 +45,11 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "check": "tsc --noEmit",
+    "test": "node scripts/verify-api.cjs && node scripts/verify-integration2.cjs && node scripts/verify-closing.cjs && node scripts/verify-profile-hooks.cjs && node scripts/verify-transactions.cjs && node scripts/verify-security.cjs && node scripts/verify-stage7.cjs && node scripts/verify-planning.cjs && node scripts/verify-goals.cjs && node scripts/verify-reports.cjs && node scripts/verify-mobile-final.cjs && node scripts/verify-reflection-exit.cjs",
+    "test:api:neon": "node scripts/verify-api-neon.cjs",
+    "test:integration2:neon": "node scripts/verify-integration2-neon.cjs"
   },
   "private": true
 }

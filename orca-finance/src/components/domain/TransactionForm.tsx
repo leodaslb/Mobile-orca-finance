@@ -1,17 +1,8 @@
-import {
-  IconBell,
-  IconCamera,
-  IconCar,
-  IconChevronDown,
-  IconChevronRight,
-  IconChevronUp,
-  IconDots,
-  IconHome,
-  IconRefresh,
-  IconShoppingCart,
-  IconTicket,
-  IconWallet,
-} from '@tabler/icons-react-native';
+
+import { CategoryIcon } from '@/components/common/CategoryIcon';
+import { ReceiptPicker } from '@/components/domain/ReceiptPicker';
+import type { ReceiptFile } from '@/types/receipt';
+import { IconBell, IconChevronDown, IconChevronRight, IconChevronUp, IconRefresh, IconWallet } from '@tabler/icons-react-native';
 import { useState } from 'react';
 import {
   Pressable,
@@ -29,8 +20,6 @@ import {
   type RecurrenceConfiguration,
 } from '@/components/domain/RecurrenceConfigurationModal';
 import {
-  getTransactionCategories,
-  getTransactionSubcategories,
   requiresPurchaseReflection,
 } from '@/services/transaction.service';
 import {
@@ -46,7 +35,7 @@ import type {
   PaymentMethod,
   TransactionType,
 } from '@/types/transaction';
-import { parseCurrencyToCents } from '@/utils/currency';
+import { centsToDecimal, parseCurrencyToCents } from '@/utils/currency';
 import {
   formatDateInput,
   formatTransactionDate,
@@ -57,7 +46,14 @@ import {
 interface TransactionFormProps {
   onSubmit?: (transaction: CreateTransactionInput, recurrence: RecurrenceConfiguration) => void;
   onPlaceInReflection?: (transaction: CreateTransactionInput, durationHours: number, recurrence: RecurrenceConfiguration) => void;
-  onAddReceipt?: () => void;
+  initialValues?: CreateTransactionInput;
+  initialDescription?: string;
+  expenseOnly?: boolean;
+  categories: { id: string; name: string; active: boolean }[];
+  subcategories: { id: string; name: string; categoryId: string; active: boolean }[];
+  busy?: boolean;
+  editing?: boolean;
+  error?: string;
 }
 
 const initialRecurrenceConfiguration: RecurrenceConfiguration = {
@@ -104,32 +100,34 @@ function formatTimeInput(value: string): string {
 export function TransactionForm({
   onSubmit,
   onPlaceInReflection,
-  onAddReceipt,
+  initialValues, initialDescription, expenseOnly = false, categories, subcategories: catalogSubcategories, busy = false, editing = false, error,
 }: TransactionFormProps) {
-  const categories = getTransactionCategories();
 
-  const [type, setType] = useState<TransactionType>('expense');
-  const [amountInput, setAmountInput] = useState('');
-  const [dateInput, setDateInput] = useState('');
-  const [timeInput, setTimeInput] = useState('');
-  const [description, setDescription] = useState('');
+  const [type, setType] = useState<TransactionType>(initialValues?.type ?? 'expense');
+  const [amountInput, setAmountInput] = useState(initialValues ? centsToDecimal(initialValues.amountCents).replace('.', ',') : '');
+  const [dateInput, setDateInput] = useState(initialValues?.date.split('-').reverse().join('/') ?? '');
+  const [timeInput, setTimeInput] = useState(initialValues?.time ?? '');
+  const [description, setDescription] = useState(initialValues?.description ?? initialDescription ?? '');
+  const [notes, setNotes] = useState(initialValues?.notes ?? '');
 
-  const [categoryId, setCategoryId] = useState('');
+  const [categoryId, setCategoryId] = useState(initialValues?.categoryId ?? '');
   const [categoryOpen, setCategoryOpen] = useState(false);
 
-  const [subcategoryId, setSubcategoryId] = useState<string | null>(null);
+  const [subcategoryId, setSubcategoryId] = useState<string | null>(initialValues?.subcategoryId ?? null);
   const [subcategoryOpen, setSubcategoryOpen] = useState(false);
 
   const [paymentMethod, setPaymentMethod] =
-    useState<PaymentMethod | null>(null);
+    useState<PaymentMethod | null>(initialValues?.paymentMethod ?? null);
   const [paymentOpen, setPaymentOpen] = useState(false);
 
-  const [tagsInput, setTagsInput] = useState('');
+  const [tagsInput, setTagsInput] = useState(initialValues?.tags?.join(', ') ?? '');
   const [essentiality, setEssentiality] =
-    useState<Essentiality | null>(null);
-  const [freeSpending, setFreeSpending] = useState(false);
+    useState<Essentiality | null>(initialValues?.essentiality ?? null);
+  const [freeSpending, setFreeSpending] = useState(initialValues?.freeSpending ?? false);
 
   const [detailsOpen, setDetailsOpen] = useState(true);
+  const [receiptFile, setReceiptFile] = useState<ReceiptFile | null>(null);
+  const [pickingReceipt, setPickingReceipt] = useState(false);
   const [recurrenceOpen, setRecurrenceOpen] = useState(false);
   const [recurrenceConfiguration, setRecurrenceConfiguration] =
     useState<RecurrenceConfiguration>(initialRecurrenceConfiguration);
@@ -146,9 +144,7 @@ export function TransactionForm({
     (category) => category.id === categoryId,
   );
 
-  const subcategories = categoryId
-    ? getTransactionSubcategories(categoryId)
-    : [];
+  const subcategories = catalogSubcategories.filter(item => item.categoryId === categoryId && (item.active || item.id === initialValues?.subcategoryId));
 
   const selectedSubcategory = subcategories.find(
     (subcategory) => subcategory.id === subcategoryId,
@@ -164,12 +160,13 @@ export function TransactionForm({
     date !== null &&
     isValidTime(timeInput) &&
     description.trim().length > 0 &&
-    (categoryId.length > 0 || (type === 'expense' && freeSpending));
+    (categoryId.length > 0 || (type === 'expense' && freeSpending) || (editing && initialValues?.categoryId === null));
 
   function handleTypeChange(nextType: TransactionType) {
     setType(nextType);
 
     if (nextType === 'income') {
+      setReceiptFile(null);
       setEssentiality(null);
       setFreeSpending(false);
     }
@@ -182,67 +179,12 @@ export function TransactionForm({
     setSubcategoryOpen(false);
   }
 
-  function renderCategoryIcon() {
-    const iconProps = {
-      size: 22,
-      strokeWidth: 2,
-    };
-
-    switch (categoryId) {
-      case 'category-food':
-        return (
-          <IconShoppingCart
-            {...iconProps}
-            color={colors.categories.food.icon}
-          />
-        );
-
-      case 'category-transport':
-        return (
-          <IconCar
-            {...iconProps}
-            color={colors.categories.transport.icon}
-          />
-        );
-
-      case 'category-housing':
-        return (
-          <IconHome
-            {...iconProps}
-            color={colors.categories.housing.icon}
-          />
-        );
-
-      case 'category-leisure':
-        return (
-          <IconTicket
-            {...iconProps}
-            color={colors.categories.leisure.icon}
-          />
-        );
-
-      case 'category-income':
-        return (
-          <IconWallet
-            {...iconProps}
-            color={colors.positive}
-          />
-        );
-
-      default:
-        return (
-          <IconDots
-            {...iconProps}
-            color={colors.textSecondary}
-          />
-        );
-    }
-  }
+  function renderCategoryIcon() { return <CategoryIcon name={selectedCategory?.name ?? ''} />; }
 
   function handleSubmit() {
     setShowErrors(true);
 
-    if (!valid || amountCents === null || date === null) {
+    if (busy || pickingReceipt || !valid || amountCents === null || date === null) {
       return;
     }
 
@@ -256,18 +198,19 @@ export function TransactionForm({
       amountCents,
       date,
       time: timeInput,
-      description: description.trim(),
+      description: description === initialValues?.description ? description : description.trim(),
       categoryId: categoryId || null,
       subcategoryId,
       paymentMethod,
-      tags,
-      notes: null,
-      essentiality: type === 'expense' ? essentiality : null,
-      receiptUri: null,
+      tags: tagsInput === initialValues?.tags?.join(', ') ? initialValues.tags : tags,
+      notes: notes === initialValues?.notes ? notes : notes.trim() || null,
+      essentiality: type === 'expense' ? essentiality : initialValues?.type === 'income' ? initialValues.essentiality : null,
+      receiptUri: initialValues?.receiptUri ?? null,
+      receiptFile: type === 'expense' ? receiptFile : null,
       freeSpending: type === 'expense' && freeSpending,
     };
 
-    if (requiresPurchaseReflection(input)) {
+    if (!editing && requiresPurchaseReflection(input)) {
       setReflectionInput(input);
       return;
     }
@@ -337,12 +280,14 @@ export function TransactionForm({
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
     >
+      {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {/* RECEITA / DESPESA */}
       <View style={styles.typeSelector}>
         <Pressable
+          disabled={expenseOnly}
           onPress={() => handleTypeChange('income')}
           accessibilityRole="radio"
-          accessibilityState={{ selected: type === 'income' }}
+          accessibilityState={{ selected: type === 'income', disabled: expenseOnly }}
           style={[
             styles.typeOption,
             type === 'income' && styles.incomeActive,
@@ -473,6 +418,9 @@ export function TransactionForm({
       </View>
 
       {/* CATEGORIA */}
+      {editing && initialValues?.categoryId === null && !initialValues.freeSpending && <Text style={styles.inputLabel}>
+        {'recurrenceId' in initialValues && initialValues.recurrenceId ? 'Ocorrência gerada automaticamente. A categoria permanece opcional.' : 'Este registro não possui categoria. Para editar os campos de uma transação manual comum, informe a categoria.'}
+      </Text>}
       <View style={styles.dropdownBlock}>
         <Pressable
           onPress={() =>
@@ -503,7 +451,7 @@ export function TransactionForm({
 
         {categoryOpen && (
           <View style={styles.dropdownOptions}>
-            {categories.map((category) => (
+            {categories.filter(c => c.active || c.id === initialValues?.categoryId).map((category) => (
               <Pressable
                 key={category.id}
                 onPress={() =>
@@ -513,6 +461,7 @@ export function TransactionForm({
                 }
                 style={styles.dropdownOption}
               >
+                <CategoryIcon name={category.name} size={20} />
                 <Text
                   style={
                     styles.dropdownOptionText
@@ -525,7 +474,7 @@ export function TransactionForm({
           </View>
         )}
 
-        {showErrors && !categoryId && !(type === 'expense' && freeSpending) && (
+        {showErrors && !categoryId && !(type === 'expense' && freeSpending) && !(editing && initialValues?.categoryId === null) && (
           <Text style={styles.error}>
             Selecione uma categoria.
           </Text>
@@ -699,6 +648,10 @@ export function TransactionForm({
               )}
             </View>
 
+            <View style={styles.detailInput}><View style={styles.flex}>
+              <Text style={styles.inputLabel}>Anotação (opcional)</Text>
+              <TextInput value={notes} onChangeText={setNotes} multiline placeholder="Contexto adicional" style={styles.detailTextInput} />
+            </View></View>
             {/* TAGS */}
             <View style={styles.detailInput}>
               <View style={styles.flex}>
@@ -720,35 +673,11 @@ export function TransactionForm({
               </View>
             </View>
 
-            {/* RECIBO */}
-            <Pressable
-              accessibilityState={{ disabled: !onAddReceipt }}
-              disabled={!onAddReceipt}
-              onPress={onAddReceipt}
-              style={[
-                styles.actionRow,
-                !onAddReceipt && styles.actionDisabled,
-              ]}
-            >
-              <IconCamera
-                size={24}
-                color={colors.textSecondary}
-              />
-
-              <Text
-                style={[
-                  styles.actionTitle,
-                  styles.actionInfo,
-                ]}
-              >
-                Adicionar recibo
-              </Text>
-
-              <IconChevronRight
-                size={20}
-                color={colors.textSecondary}
-              />
-            </Pressable>
+            {type === 'expense' && <View style={{ paddingVertical: spacing.md, gap: spacing.sm }}>
+              <Text style={styles.inputLabel}>Recibo</Text>
+              {editing ? <Text style={styles.inputLabel}>Adicione novos recibos no detalhe da transação.</Text>
+                : <ReceiptPicker value={receiptFile} onChange={setReceiptFile} disabled={busy} onBusyChange={setPickingReceipt} />}
+            </View>}
 
             {type === 'expense' && <View style={styles.actionRow}>
               <IconWallet size={24} color={colors.primary} />
@@ -757,6 +686,7 @@ export function TransactionForm({
             </View>}
 
             {/* RECORRÊNCIA */}
+            {!editing && <>
             <View style={styles.actionRow}>
               <IconRefresh
                 size={26}
@@ -777,7 +707,7 @@ export function TransactionForm({
                       styles.actionSubtitle
                     }
                   >
-                    Mensal
+                    {{ weekly: 'Semanal', monthly: 'Mensal', yearly: 'Anual' }[recurrenceConfiguration.frequency]}
                     {recurrenceConfiguration.nextOccurrence
                       ? ` • ${formatTransactionDate(
                           recurrenceConfiguration.nextOccurrence,
@@ -841,6 +771,8 @@ export function TransactionForm({
               />
             </View>
 
+            </>}
+            {editing && <Text style={styles.inputLabel}>Recorrência, lembretes e recibos existentes são preservados.</Text>}
             {/* ESSENCIAL */}
             {type === 'expense' && (
               <View
@@ -922,6 +854,7 @@ export function TransactionForm({
       </View>
 
       <Pressable
+        disabled={busy || pickingReceipt} accessibilityState={{ busy: busy || pickingReceipt, disabled: busy || pickingReceipt }}
         onPress={handleSubmit}
         accessibilityRole="button"
         style={styles.saveButton}
@@ -929,7 +862,7 @@ export function TransactionForm({
         <Text
           style={styles.saveButtonText}
         >
-          Salvar transação
+          {busy ? 'Salvando…' : editing ? 'Salvar alterações' : 'Salvar transação'}
         </Text>
       </Pressable>
     </ScrollView>
@@ -1123,13 +1056,16 @@ const styles = StyleSheet.create({
 
   dropdownOption: {
     minHeight: 44,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     paddingHorizontal: spacing.md,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
 
   dropdownOptionText: {
+    flex: 1,
     fontFamily: fontFamily.regular,
     fontSize: fontSize.body,
     color: colors.textPrimary,

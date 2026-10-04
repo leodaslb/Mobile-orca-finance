@@ -25,9 +25,9 @@ function load(file) {
   return module.exports;
 }
 
-const { getAvailableReportMonths, getReportData, generateFinancialExport } = load('src/services/report.service.ts');
-const { getDashboardData } = load('src/services/dashboard.service.ts');
-const { getMonthlyPlanningData } = load('src/services/planning.service.ts');
+const { getAvailableReportMonths, getReportData, generateFinancialExport } = load('src/services/report.mock-service.ts');
+const { getDashboardData } = load('src/services/dashboard.mock-service.ts');
+const { getMonthlyPlanningData } = load('src/services/planning.mock-service.ts');
 const { transactionsMock } = load('src/data/mocks/transactions.mock.ts');
 const snapshot = JSON.stringify(transactionsMock);
 const originalLength = transactionsMock.length;

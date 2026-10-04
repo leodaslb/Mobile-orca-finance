@@ -1,35 +1,28 @@
-import {
-  IconAlertTriangle,
-  IconChevronDown,
-  IconChevronLeft,
-} from '@tabler/icons-react-native';
+
+import { CategoryIcon } from '@/components/common/CategoryIcon';
+import { IconChevronLeft } from '@tabler/icons-react-native';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { RefreshControl, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AsyncState } from '@/components/common/AsyncState';
+import { MonthSelector } from '@/components/common/MonthSelector';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { localDate } from '@/utils/date';
 import { AppCard } from '@/components/common/AppCard';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import {
-  getAvailablePlanningPeriods,
   getPlannedVsActualData,
 } from '@/services/planning.service';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 import { formatCurrency } from '@/utils/currency';
 
-function periodLabel(periodKey: string) {
-  const label = new Intl.DateTimeFormat('pt-BR', {
-    month: 'long', year: 'numeric', timeZone: 'UTC',
-  }).format(new Date(`${periodKey}-01T00:00:00Z`));
-  return label.charAt(0).toLocaleUpperCase('pt-BR') + label.slice(1);
-}
-
 export default function PlannedVsActualScreen() {
   const router = useRouter();
-  const periods = useMemo(() => getAvailablePlanningPeriods(), []);
-  const [period, setPeriod] = useState(periods[0]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const data = getPlannedVsActualData(period);
+  const [period, setPeriod] = useState(localDate().slice(0, 7));
+  const resource = useProfileResource(useCallback(() => getPlannedVsActualData(period), [period]));
+  const data = resource.data;
   const goBack = () => router.canGoBack()
     ? router.back()
     : router.replace('/(tabs)/planejamento');
@@ -43,12 +36,12 @@ export default function PlannedVsActualScreen() {
       <Text style={styles.title}>Planejado x realizado</Text>
       <View style={styles.headerButton} />
     </View>
-    <ScrollView contentContainerStyle={styles.content}>
-      <Pressable onPress={() => setPickerOpen(true)} style={styles.selector}
-        accessibilityRole="button" accessibilityLabel="Selecionar período">
-        <Text style={styles.selectorText}>{periodLabel(period)}</Text>
-        <IconChevronDown size={22} color={colors.textSecondary} />
-      </Pressable>
+    <ScrollView refreshControl={<RefreshControl refreshing={resource.refreshing} onRefresh={resource.reload} />} contentContainerStyle={styles.content}>
+      <MonthSelector value={period} onChange={setPeriod} />
+      {(resource.loading || resource.error) && <AsyncState loading={resource.loading} error={resource.error} onRetry={resource.reload} />}
+      {!resource.loading && !resource.error && !data && <Text style={styles.valueLabel}>Nenhum orçamento neste mês.</Text>}
+      {data && <>
+      <Text style={styles.valueLabel}>Realizado das categorias orçadas. Diferença = realizado menos planejado. Período em UTC.</Text>
       <AppCard style={styles.summaryCard}>
         <Text style={styles.cardTitle}>Resumo do período</Text>
         <View style={styles.summaryRow}>
@@ -57,7 +50,7 @@ export default function PlannedVsActualScreen() {
           <SummaryValue label="Realizado" value={data.totalSpentCents} />
           <View style={styles.divider} />
           <SummaryValue label="Diferença" value={data.differenceCents}
-            color={data.differenceCents >= 0 ? colors.positive : colors.negative} />
+            color={data.differenceCents <= 0 ? colors.positive : colors.negative} />
         </View>
       </AppCard>
       <Text style={styles.sectionTitle}>Por categoria</Text>
@@ -66,7 +59,7 @@ export default function PlannedVsActualScreen() {
           ? colors.negative : colors.positive;
         const max = Math.max(category.limitCents, category.spentCents, 1);
         return <AppCard key={category.categoryId} style={styles.categoryCard}>
-          <Text style={styles.categoryName}>{category.categoryName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><CategoryIcon name={category.categoryName} /><Text style={styles.categoryName}>{category.categoryName}</Text></View>
           <View style={styles.categoryValues}>
             <ComparisonValue label="Planejado" value={category.limitCents} />
             <ComparisonValue label="Realizado" value={category.spentCents} />
@@ -81,32 +74,8 @@ export default function PlannedVsActualScreen() {
           </View>
         </AppCard>;
       })}
-      {data.largestDeviation && <AppCard style={styles.deviationCard}>
-        <View style={styles.alertIcon}>
-          <IconAlertTriangle size={24} color={colors.negative} />
-        </View>
-        <View style={styles.flex}>
-          <Text style={styles.deviationLabel}>Maior desvio</Text>
-          <Text style={styles.deviationValue}>
-            {data.largestDeviation.categoryName}: {
-              data.largestDeviation.differenceCents > 0 ? '+' : ''
-            }{formatCurrency(data.largestDeviation.differenceCents)}
-          </Text>
-        </View>
-      </AppCard>}
+      </>}
     </ScrollView>
-    <Modal visible={pickerOpen} transparent animationType="fade"
-      onRequestClose={() => setPickerOpen(false)}>
-      <Pressable style={styles.overlay} onPress={() => setPickerOpen(false)}>
-        <View style={styles.periodModal}>
-          <Text style={styles.cardTitle}>Selecionar período</Text>
-          {periods.map((item) => <Pressable key={item} style={styles.periodOption}
-            onPress={() => { setPeriod(item); setPickerOpen(false); }}>
-            <Text style={styles.selectorText}>{periodLabel(item)}</Text>
-          </Pressable>)}
-        </View>
-      </Pressable>
-    </Modal>
   </SafeAreaView>;
 }
 

@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { isUUID } from 'class-validator';
 import { UsersRepository } from '../users/users.repository';
 import { AuthenticatedRequest } from './auth.types';
 
@@ -15,15 +16,16 @@ export class JwtAuthGuard implements CanActivate {
     const [scheme, token] = request.headers.authorization?.split(' ') ?? [];
     if (scheme !== 'Bearer' || !token) throw new UnauthorizedException();
 
+    let payload: { sub?: string };
     try {
-      const payload = await this.jwt.verifyAsync<{ sub?: string }>(token);
-      if (!payload.sub || !(await this.users.findById(payload.sub))) {
-        throw new UnauthorizedException();
-      }
-      request.user = { id: payload.sub };
-      return true;
+      payload = await this.jwt.verifyAsync<{ sub?: string }>(token);
     } catch {
       throw new UnauthorizedException();
     }
+    if (typeof payload.sub !== 'string' || !isUUID(payload.sub) || !(await this.users.findById(payload.sub))) {
+      throw new UnauthorizedException();
+    }
+    request.user = { id: payload.sub };
+    return true;
   }
 }

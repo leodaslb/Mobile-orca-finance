@@ -1,93 +1,39 @@
-import { profilesMock } from '@/data/mocks/profile.mock';
-import { mockScenario } from '@/data/mocks/scenario.mock';
-import type { FinancialProfile } from '@/types';
+import { apiRequest, ApiError } from '@/services/api-client';
 
-export interface LocalAccount {
-  id: string;
-  name: string;
-  email: string;
-  profileIds: string[];
-}
+export interface Account { id: string; name: string; email: string; profileIds: string[] }
+export interface ApiProfile { id: string; nome: string; moedaBase: string }
+export interface AuthSession { account: Account; profiles: ApiProfile[]; accessToken: string; activeProfileId: string | null }
 
-// Demonstração em memória: não representa autenticação remota nem guarda credenciais entre aberturas.
-const accounts: { account: LocalAccount; passwordDigest: string }[] = [{
-  account: {
-    id: 'account-demo',
-    name: 'Usuário',
-    email: 'demo@orca.finance',
-    profileIds: ['profile-001'],
-  },
-  passwordDigest: digest('demo1234'),
-}];
-let nextAccountNumber = 1;
-
-function digest(value: string): string {
-  // Comparador de demonstração, NÃO é hash criptográfico para produção.
-  let result = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    result = Math.imul(result ^ value.charCodeAt(index), 16777619);
+export async function signIn(email: string, password: string): Promise<AuthSession> {
+  let accessToken: string;
+  try {
+    ({ accessToken } = await apiRequest<{ accessToken: string }>('/auth/login', {
+      method: 'POST', authenticated: false, body: { email: normalizeEmail(email), senha: password },
+    }));
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) throw new ApiError(401, 'E-mail ou senha inválidos.');
+    throw error;
   }
-  return (result >>> 0).toString(16);
+  const [user, profiles] = await Promise.all([
+    apiRequest<{ id: string; nome: string; email: string }>('/me', { token: accessToken }),
+    apiRequest<ApiProfile[]>('/profiles', { token: accessToken }),
+  ]);
+  return { accessToken, profiles, activeProfileId: profiles.length === 1 ? profiles[0].id : null,
+    account: { id: user.id, name: user.nome, email: user.email, profileIds: profiles.map(p => p.id) } };
 }
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function activate(account: LocalAccount) {
-  const profileId = account.profileIds[0];
-  if (!profileId) throw new Error('Conta sem perfil financeiro.');
-  mockScenario.activeProfileId = profileId;
-  return { account, activeProfileId: profileId };
-}
-
-export function signUpLocal(name: string, email: string, password: string) {
-  const cleanName = name.trim().replace(/\s+/g, ' ');
-  const cleanEmail = normalizeEmail(email);
-  if (!cleanName || !cleanEmail || !password) {
-    throw new Error('Preencha nome, e-mail e senha.');
+export async function signUp(name: string, email: string, password: string): Promise<AuthSession> {
+  try {
+    await apiRequest('/auth/register', { method: 'POST', authenticated: false,
+      body: { nome: name.trim(), email: normalizeEmail(email), senha: password } });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) throw new ApiError(409, 'Este e-mail já está cadastrado.');
+    throw error;
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-    throw new Error('Informe um e-mail válido.');
-  }
-  if (accounts.some((entry) => entry.account.email === cleanEmail)) {
-    throw new Error('Este e-mail já está cadastrado.');
-  }
-  const number = String(nextAccountNumber++).padStart(3, '0');
-  const profileId = `profile-account-${number}`;
-  const account: LocalAccount = {
-    id: `account-${number}`,
-    name: cleanName,
-    email: cleanEmail,
-    profileIds: [profileId],
-  };
-  const profile: FinancialProfile = {
-    id: profileId,
-    name: cleanName,
-    initials: cleanName.split(' ').slice(0, 2).map((part) => part[0].toUpperCase()).join(''),
-    currencyCode: 'BRL',
-    initialBalanceCents: 0,
-  };
-  accounts.push({ account, passwordDigest: digest(password) });
-  profilesMock.push(profile);
-  return activate(account);
+  // Cadastro cria a conta e o primeiro perfil, mas o contrato não retorna token.
+  try { return await signIn(email, password); }
+  catch (error) { throw new ApiError(error instanceof ApiError ? error.status : 0,
+    'Conta criada. Não foi possível abrir a sessão. Use Entrar com seu e-mail e senha.'); }
 }
 
-export function signInLocal(email: string, password: string) {
-  const entry = accounts.find((item) => item.account.email === normalizeEmail(email));
-  if (!entry || entry.passwordDigest !== digest(password)) {
-    throw new Error('E-mail ou senha inválidos.');
-  }
-  return activate(entry.account);
-}
-
-export function selectLocalProfile(account: LocalAccount, profileId: string) {
-  if (!account.profileIds.includes(profileId)) {
-    throw new Error('Perfil não pertence a esta conta.');
-  }
-  mockScenario.activeProfileId = profileId;
-}
-
-export function leaveLocalAccount() {
-  mockScenario.activeProfileId = 'profile-001';
-}
+function normalizeEmail(email: string) { return email.trim().toLowerCase(); }

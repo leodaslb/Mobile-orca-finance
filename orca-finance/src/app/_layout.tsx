@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 import { Modal } from 'react-native';
 
 import { LocalLockScreen } from '@/components/domain/LocalLockScreen';
+import { AsyncState } from '@/components/common/AsyncState';
 import { AppSessionProvider, useAppSession } from '@/contexts/AppSessionContext';
 
 SplashScreen.preventAutoHideAsync();
@@ -37,7 +38,8 @@ export default function RootLayout() {
 }
 
 function RootNavigation() {
-  const { account, locked } = useAppSession();
+  const { account, activeProfileId, locked, securityReady, securityError, retryLocalSecurity } = useAppSession();
+  if (!securityReady) return <AsyncState loading={!securityError} error={securityError} onRetry={retryLocalSecurity} />;
 
   return (
     <>
@@ -50,7 +52,7 @@ function RootNavigation() {
         }}
       >
         <Stack.Protected guard={!account}><Stack.Screen name="index" /></Stack.Protected>
-        <Stack.Protected guard={!!account}>
+        <Stack.Protected guard={!!account && !!activeProfileId}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="transacao/nova" />
           <Stack.Screen name="transacao/[id]" />
@@ -61,9 +63,12 @@ function RootNavigation() {
           <Stack.Screen name="planejamento/limites-alertas" />
           <Stack.Screen name="planejamento/gastos-livres" />
           <Stack.Screen name="planejamento/planejado-realizado" />
+          <Stack.Screen name="reflexao/index" />
+          <Stack.Screen name="recorrencias/index" />
+        </Stack.Protected>
+        <Stack.Protected guard={!!account}>
           <Stack.Screen name="configuracoes/index" />
           <Stack.Screen name="seguranca/index" />
-          <Stack.Screen name="reflexao/index" />
         </Stack.Protected>
       </Stack>
       <Modal visible={!!account && locked} animationType="fade" onRequestClose={() => {}}>

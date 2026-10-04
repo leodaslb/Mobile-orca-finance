@@ -4,7 +4,10 @@ const brlFormatter = new Intl.NumberFormat('pt-BR', {
 });
 
 export function formatCurrency(cents: number): string {
-  return brlFormatter.format(cents / 100);
+  const [whole, fraction] = centsToDecimal(cents).split('.');
+  // Formatar somente a parte inteira evita perder centavos perto de MAX_SAFE_INTEGER.
+  return brlFormatter.formatToParts(Number(whole))
+    .map(part => part.type === 'fraction' ? fraction : part.value).join('');
 }
 
 /**
@@ -41,25 +44,23 @@ export function parseCurrencyToCents(value: string): number | null {
   const [reaisPart, centsPart = ''] =
     withoutThousands.split(',');
 
-  const reais = Number(reaisPart);
+  const totalCents = BigInt(reaisPart) * 100n + BigInt(centsPart.padEnd(2, '0'));
+  return totalCents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(totalCents) : null;
+}
+// Decimal REST é uma string de reais, enquanto a UI usa centavos inteiros.
+export function decimalToCents(value: string): number {
+  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+  if (!match) throw new Error('Valor monetário inválido na API.');
+  const cents = BigInt(match[2]) * 100n + BigInt((match[3] ?? '').padEnd(2, '0'));
+  const signed = match[1] ? -cents : cents;
+  const result = Number(signed);
+  if (!Number.isSafeInteger(result)) throw new Error('Valor fora da precisão suportada pela UI.');
+  return result;
+}
 
-  const cents = Number(
-    centsPart.padEnd(2, '0'),
-  );
-
-  if (
-    !Number.isSafeInteger(reais) ||
-    !Number.isSafeInteger(cents)
-  ) {
-    return null;
-  }
-
-  const totalCents =
-    reais * 100 + cents;
-
-  if (!Number.isSafeInteger(totalCents)) {
-    return null;
-  }
-
-  return totalCents;
+export function centsToDecimal(cents: number): string {
+  if (!Number.isSafeInteger(cents)) throw new Error('Valor monetário inválido.');
+  const integer = BigInt(cents);
+  const absolute = integer < 0n ? -integer : integer;
+  return `${integer < 0n ? '-' : ''}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`;
 }

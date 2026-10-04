@@ -1,56 +1,45 @@
-# Welcome to your Expo app 👋
+﻿# Orca Finance Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+React Native/Expo Router. Cadastro/login, sessão, perfil ativo, transações, edição/reversão e dashboard usam a API REST real. Planejamento mensal, cota de gastos livres, limites, metas/aportes, relatórios e exportação CSV/XLSX também usam a API real.
 
-## Get started
+## Executar com o backend local
 
-1. Install dependencies
+1. Em `backend/`, mantenha o ambiente existente e execute `npm run start:dev`.
+2. Em `orca-finance/`, copie `.env.example` para `.env` se ainda não existir. Para Android Emulator, use `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000`. Em dispositivo físico, use o IP da máquina na mesma rede.
+3. Execute `npm start` e abra no Android/Expo Go. Reinicie o Metro após mudar variáveis de ambiente.
+4. Entre com uma conta real já cadastrada ou crie uma conta pela tela de entrada. Não existe fallback para as credenciais mock.
 
-   ```bash
-   npm install
-   ```
+A API local escuta em `0.0.0.0`. Sessão fica em memória: reiniciar o app exige novo login, sem refresh token. PIN/biometria protegem o acesso local separadamente: PIN com salt/hash no SecureStore e biometria pelo Android. Falha ou cancelamento não desbloqueiam o app. Expo Web ainda depende de configuração CORS no backend.
 
-2. Start the app
+## Verificações
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```sh
+npm run check
+npm test
+npx expo export --platform android --output-dir .expo/integration-build
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Para testar os services contra o Neon já configurado, prepare o backend com `npm run prisma:generate` e `npm run build`, depois execute no mobile:
 
-### Other setup steps
+```sh
+npm run test:api:neon
+npm run test:integration2:neon
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+O teste inicia uma API temporária com schedulers desativados, cria contas exclusivas e limpa somente suas fixtures. Não usa a conta Leonardo nem apaga os dados de demonstração populados para ela.
 
-## Learn more
+O mobile ainda não tem configuração de ESLint. A rastreabilidade por US, endpoints, arquivos, testes, diferenças de contrato e pendências estão em [INTEGRACAO_API.md](INTEGRACAO_API.md).
 
-To learn more about developing your project with Expo, look at the following resources:
+Exportação Android salva o arquivo real pelo seletor de pasta do sistema. CSV e XLSX mantêm os bytes devolvidos pelo backend; não há exportação PDF nesta US. O módulo `expo-file-system` já instalado pelo Expo passou a ser uma dependência direta para esse uso.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Orçamento, cota, regras e relatórios respeitam o calendário UTC do contrato atual. Metas usam DATE puro; aportes enviam timestamp convertido do dia local. Limites percentuais/base de renda e histórico individual de aportes ainda não têm contrato HTTP nesta versão. Consulte [INTEGRACAO_BLOCO2.md](INTEGRACAO_BLOCO2.md) para detalhes.
 
-## Join the community
+## Fechamento da Sprint 1
 
-Join our community of developers creating universal apps.
+Consulte [STATUS_FINAL_SPRINT1.md](STATUS_FINAL_SPRINT1.md) para o status das 18 histórias, rastreabilidade, evidências, pendências e roteiro de apresentação. Subcategorias permitem criar/editar/desativar/reativar. Perfil e configurações dá acesso à lista de recorrências e lembretes: frequência semanal/mensal/anual, término, edição futura e cancelamento. Recibos são fotografados ou escolhidos da galeria e enviados como JPEG/PNG até 5 MiB. Anexos antigos continuam disponíveis; criação por URL foi removida. O upload real depende da configuração privada do Cloudinary no backend.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Os PNGs de `../docs/telas/` orientam a apresentação, preservando Manrope/tokens/cores planas e as RN consolidadas. Mocks estão separados em services explícitos de teste e não são alcançados pelas rotas do app. `npm test` inclui verificações de persistência local, mutações e respostas atrasadas. O projeto mobile não tem ESLint configurado; o script padrão `lint` não constitui validação executada.
+
+Ainda não estão completos: conversão/finalização de reflexão, upload físico e entrega remota de notificações. A validação de biometria deve distinguir sucesso em hardware real de testes dos adapters nativos substituídos. A conta e os dados existentes no Neon foram preservados; os testes usam somente suas próprias fixtures.
+
+Correções finais: [recuperação após interrupção](RECUPERACAO_INTERRUPCAO.md), [registro do bloco anterior](FECHAMENTO_MOBILE.md) e [decisões](../docs/Orca_Finance_Fechamento_Mobile.md). Histórico de aportes usa GET/POST sob a meta; Gastos por categoria permite trocar o mês; ícones das sete categorias usam um mapper central. US12 permite confirmar após espera, preenchendo novamente a compra com apenas a descrição reaproveitada, ou desistir sem lançamento.

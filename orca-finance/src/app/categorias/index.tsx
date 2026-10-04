@@ -1,36 +1,53 @@
-import { IconChevronDown, IconChevronLeft, IconChevronRight, IconPlus } from '@tabler/icons-react-native';
+import { categoryPresentation } from '@/utils/category-presentation';
+import { CategoryIcon } from '@/components/common/CategoryIcon';
+import { IconChevronDown, IconChevronLeft, IconChevronRight, IconPlus, IconPencil } from '@tabler/icons-react-native';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { createSubcategory, getCategoriesWithSubcategories } from '@/services/category.service';
+import { createRemoteSubcategory, updateRemoteSubcategory, getTransactionCatalog, type CatalogSubcategory } from '@/services/category.service';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { AsyncState } from '@/components/common/AsyncState';
+import { useProfileMutation } from '@/hooks/useProfileMutation';
+import { AppSwitch } from '@/components/common/AppSwitch';
+import { useAppSession } from '@/contexts/AppSessionContext';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 
 export default function CategoriesScreen() {
+  const { activeProfileId } = useAppSession();
+  return <CategoriesContent key={activeProfileId} />;
+}
+function CategoriesContent() {
   const router = useRouter();
-  const [expanded, setExpanded] = useState(() => new Set(['category-food']));
-  const [revision, setRevision] = useState(0);
+  const [expanded, setExpanded] = useState(() => new Set<string>());
+  const mutation = useProfileMutation();
+  const [editing, setEditing] = useState<CatalogSubcategory | null>(null);
+  const [active, setActive] = useState(true);
+  const [validation, setValidation] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const categories = useMemo(() => getCategoriesWithSubcategories(), [revision]);
+  const load = useCallback(() => getTransactionCatalog(), []);
+  const { data, loading, refreshing, error, reload } = useProfileResource(load);
+  const categories = data?.categories.map(c => ({ ...c, subcategories: data.subcategories.filter(sub => sub.categoryId === c.id) })) ?? [];
   const toggle = (id: string) => setExpanded((current) => {
     const next = new Set(current);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
-  const close = () => { setCategoryId(null); setName(''); };
-  const save = () => {
+  const close = () => { if (mutation.busy) return; setCategoryId(null); setName(''); setEditing(null); setValidation(''); };
+  function open(category: string, item?: CatalogSubcategory) {
+    setCategoryId(category); setEditing(item ?? null); setName(item?.name ?? ''); setActive(item?.active ?? true); setValidation('');
+  }
+  function save() {
     if (!categoryId) return;
-    try {
-      createSubcategory({ categoryId, name });
-      setExpanded((current) => new Set(current).add(categoryId));
-      setRevision((current) => current + 1);
-      close();
-    } catch (error) {
-      Alert.alert('Não foi possível salvar', error instanceof Error ? error.message : 'Tente novamente.');
-    }
-  };
+    if (!name.trim()) { setValidation('Informe o nome da subcategoria.'); return; }
+    setValidation('');
+    void mutation.run(() => editing ? updateRemoteSubcategory(editing.id, { name, active }) : createRemoteSubcategory(categoryId, name), () => {
+      setExpanded(current => new Set(current).add(categoryId));
+      setCategoryId(null); setName(''); setEditing(null); reload();
+    });
+  }
 
   return <SafeAreaView style={styles.screen}>
     <View style={styles.header}>
@@ -42,12 +59,14 @@ export default function CategoriesScreen() {
       </Pressable>
       <Text style={styles.title}>Categorias</Text><View style={styles.iconButton} />
     </View>
-    <ScrollView contentContainerStyle={styles.content}>
-      <Text style={styles.intro}>Organize suas transações com subcategorias personalizadas.</Text>
-      {categories.map((category) => <View key={category.id} style={styles.card}>
+    <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />} contentContainerStyle={styles.content}>
+      <Text style={styles.intro}>As categorias principais são fixas. Você pode gerenciar suas subcategorias.</Text>
+      {(loading || error) && <AsyncState loading={loading} error={error} onRetry={reload} />}
+      {!loading && !error && !categories.length && <Text style={styles.muted}>Nenhuma categoria disponível.</Text>}
+      {categories.filter(c => c.active).map((category) => <View key={category.id} style={styles.card}>
         <Pressable onPress={() => toggle(category.id)} style={styles.cardHeader}
           accessibilityRole="button" accessibilityState={{ expanded: expanded.has(category.id) }}>
-          <Text style={styles.category}>{category.name}</Text>
+          <View style={styles.categoryHeading}><View style={[styles.categoryIcon, { backgroundColor: categoryPresentation(category.name).background }]}><CategoryIcon name={category.name} /></View><Text style={styles.category}>{category.name}</Text></View>
           {expanded.has(category.id)
             ? <IconChevronDown size={20} color={colors.textSecondary} />
             : <IconChevronRight size={20} color={colors.textSecondary} />}
@@ -56,8 +75,10 @@ export default function CategoriesScreen() {
           {category.subcategories.length === 0
             ? <Text style={styles.muted}>Nenhuma subcategoria.</Text>
             : category.subcategories.map((item) =>
-              <Text key={item.id} style={styles.item}>• {item.name}</Text>)}
-          <Pressable onPress={() => setCategoryId(category.id)} style={styles.addButton}
+              <Pressable key={item.id} onPress={() => open(category.id, item)} style={styles.subcategoryRow} accessibilityRole="button" accessibilityLabel={`Editar subcategoria ${item.name}`}>
+                <Text style={[styles.item, !item.active && styles.muted]}>{item.name}{!item.active ? ' · Inativa' : ''}</Text><IconPencil size={18} color={colors.textSecondary} />
+              </Pressable>)}
+          <Pressable onPress={() => open(category.id)} style={styles.addButton}
             accessibilityRole="button">
             <IconPlus size={18} color={colors.primary} />
             <Text style={styles.addText}>Nova subcategoria</Text>
@@ -67,12 +88,17 @@ export default function CategoriesScreen() {
     </ScrollView>
     <SubcategoryModal visible={categoryId !== null} categoryName={
       categories.find((item) => item.id === categoryId)?.name
-    } name={name} onNameChange={setName} onClose={close} onSave={save} />
+    } editing={!!editing} active={active} onActiveChange={setActive} error={validation || mutation.error} busy={mutation.busy} name={name} onNameChange={setName} onClose={close} onSave={save} />
   </SafeAreaView>;
 }
 
 function SubcategoryModal(props: {
   visible: boolean;
+  editing: boolean;
+  active: boolean;
+  onActiveChange: (value: boolean) => void;
+  error: string;
+  busy: boolean;
   categoryName?: string;
   name: string;
   onNameChange: (value: string) => void;
@@ -81,25 +107,32 @@ function SubcategoryModal(props: {
 }) {
   return <Modal visible={props.visible} transparent animationType="fade"
     onRequestClose={props.onClose}>
-    <View style={styles.overlay}><View style={styles.modal}>
-      <Text style={styles.modalTitle}>Nova subcategoria</Text>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}><View style={styles.modal}>
+      <Text style={styles.modalTitle}>{props.editing ? 'Editar subcategoria' : 'Nova subcategoria'}</Text>
       <Text style={styles.muted}>{props.categoryName}</Text>
       <Text style={styles.label}>Nome</Text>
-      <TextInput value={props.name} onChangeText={props.onNameChange} autoFocus maxLength={50}
+      <TextInput value={props.name} onChangeText={props.onNameChange} autoFocus editable={!props.busy}
         placeholder="Ex.: Feira" placeholderTextColor={colors.navInactive} style={styles.input} />
+      {props.editing && <View style={styles.subcategoryRow}><Text style={styles.item}>Subcategoria ativa</Text><AppSwitch disabled={props.busy} value={props.active} onChange={props.onActiveChange} accessibilityLabel="Subcategoria ativa" /></View>}
+      {props.editing && <Text style={styles.muted}>Desativar preserva as transações anteriores.</Text>}
+      {!!props.error && <Text accessibilityRole="alert" style={styles.error}>{props.error}</Text>}
       <View style={styles.actions}>
-        <Pressable onPress={props.onClose} style={styles.secondaryButton}>
+        <Pressable disabled={props.busy} onPress={props.onClose} style={styles.secondaryButton}>
           <Text style={styles.secondaryText}>Cancelar</Text>
         </Pressable>
-        <Pressable onPress={props.onSave} style={styles.primaryButton}>
-          <Text style={styles.primaryText}>Salvar</Text>
+        <Pressable disabled={props.busy} accessibilityState={{ busy: props.busy, disabled: props.busy }} onPress={props.onSave} style={styles.primaryButton}>
+          <Text style={styles.primaryText}>{props.busy ? 'Salvando…' : 'Salvar'}</Text>
         </Pressable>
       </View>
-    </View></View>
+    </View></KeyboardAvoidingView>
   </Modal>;
 }
 
 const styles = StyleSheet.create({
+  categoryHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  categoryIcon: { width: 38, height: 38, borderRadius: radius.icon, alignItems: 'center', justifyContent: 'center' },
+  subcategoryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  error: { color: colors.negative, fontFamily: fontFamily.regular, marginTop: spacing.md },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', paddingHorizontal: spacing.md },
@@ -113,9 +146,8 @@ const styles = StyleSheet.create({
   cardHeader: { minHeight: 56, paddingHorizontal: spacing.lg, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'space-between' },
   category: { fontFamily: fontFamily.bold, fontSize: fontSize.body, color: colors.textPrimary },
-  subcategories: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg,
-    borderTopWidth: 0.5, borderTopColor: colors.border },
-  item: { paddingTop: spacing.md, fontFamily: fontFamily.regular,
+  subcategories: { paddingLeft: 66, paddingRight: spacing.lg, paddingBottom: spacing.lg },
+  item: { flex: 1, fontFamily: fontFamily.regular,
     fontSize: fontSize.body, color: colors.textPrimary },
   muted: { paddingTop: spacing.md, fontFamily: fontFamily.regular,
     fontSize: fontSize.body, color: colors.textSecondary },

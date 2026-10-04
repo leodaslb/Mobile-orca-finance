@@ -27,8 +27,8 @@ function load(file) {
   return module.exports;
 }
 
-const goalService = load('src/services/goal.service.ts');
-const { getDashboardData } = load('src/services/dashboard.service.ts');
+const goalService = load('src/services/goal.mock-service.ts');
+const { getDashboardData } = load('src/services/dashboard.mock-service.ts');
 const { goalsMock, goalContributionsMock } = load('src/data/mocks/goals.mock.ts');
 const { transactionsMock } = load('src/data/mocks/transactions.mock.ts');
 const goalsSnapshot = JSON.stringify(goalsMock);

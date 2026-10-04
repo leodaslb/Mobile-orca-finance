@@ -899,17 +899,20 @@ tipo
 
 O arquivo binário não deve ser armazenado diretamente na tabela `AnexoTransacao`.
 
-### Decisão pendente de implementação
+### Decisão de implementação — RF12 / US19
 
-Ainda será escolhido onde o arquivo físico ficará armazenado:
+Cloudinary foi definido para o armazenamento físico dos recibos. Upload autenticado pelo backend:
 
 ```text
-storage externo
-ou
-solução local/de desenvolvimento compatível com a entrega acadêmica
+Mobile (multipart/form-data)
+→ Controller → ReceiptsService
+  ├→ CloudinaryStorageService → Cloudinary → URL HTTPS
+  └→ Repository existente → Prisma → AnexoTransacao no Neon
 ```
 
-Essa escolha não altera o modelo de dados.
+JPEG/PNG, um arquivo por requisição, limite técnico de 5 MiB. A integração externa fica isolada no adapter; não há binário/Base64 no banco. Falha de persistência tenta remover o arquivo recém-enviado. Essa escolha não altera o modelo de dados, schema ou migrations.
+
+O identificador do provider é usado somente durante upload/compensação. Reversão continua removendo `AnexoTransacao` por CASCADE; limpeza física no Cloudinary após reversão permanece uma pendência técnica. OCR não faz parte da US19. Contrato/configuração em `backend/README.md`.
 
 ---
 
@@ -1076,7 +1079,6 @@ As seguintes decisões permanecem abertas:
 | Tema | Situação |
 |---|---|
 | Estratégia completa de access/refresh token | Definir junto da autenticação real |
-| Armazenamento físico de anexos | Definir junto do RF12/RF29 |
 | Push real | Definir quando notificações remotas forem implementadas |
 | Importação CSV | RN-IMP-01 pendente |
 | Histórico de preços | RN-PRECO-01 pendente |

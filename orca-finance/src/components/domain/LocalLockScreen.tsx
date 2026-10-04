@@ -1,5 +1,5 @@
 import { IconBackspace, IconFingerprint, IconLock } from '@tabler/icons-react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,26 +7,34 @@ import { useAppSession } from '@/contexts/AppSessionContext';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 
 export function LocalLockScreen() {
-  const { security, unlockWithPin, unlockBiometricDemo } = useAppSession();
+  const { security, unlockWithPin, unlockWithBiometric, signOut } = useAppSession();
   const [mode, setMode] = useState<'pin' | 'biometric'>(
     security.preferredMethod === 'biometric' && security.biometricEnabled ? 'biometric' : 'pin',
   );
+  const [busy, setBusy] = useState(false); const sending = useRef(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
 
-  function enterDigit(digit: string) {
-    if (pin.length >= 4) return;
+  async function enterDigit(digit: string) {
+    if (sending.current || pin.length >= 4) return;
     const next = pin + digit;
     setPin(next);
     setError('');
     if (next.length === 4) {
-      if (!unlockWithPin(next)) {
-        setError('PIN inválido. Tente novamente.');
-        setPin('');
-      }
+      sending.current = true; setBusy(true);
+      try { if (!await unlockWithPin(next)) { setError('PIN inválido. Tente novamente.'); setPin(''); } }
+      catch { setError('Não foi possível desbloquear. Tente novamente.'); setPin(''); }
+      finally { sending.current = false; setBusy(false); }
     }
   }
 
+  async function biometric() {
+    if (sending.current) return;
+    sending.current = true; setBusy(true); setError('');
+    try { await unlockWithBiometric(); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : 'Não foi possível autenticar.'); }
+    finally { sending.current = false; setBusy(false); }
+  }
   return <SafeAreaView style={styles.screen}>
     <View style={styles.handle} />
     <Text style={styles.brand}>orca finance</Text>
@@ -40,27 +48,28 @@ export function LocalLockScreen() {
       {mode === 'pin' && <>
         <View style={styles.dots}>{[0, 1, 2, 3].map((position) => <View key={position}
           style={[styles.dot, position < pin.length && styles.dotFilled]} />)}</View>
-        {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+
         <View style={styles.keypad}>
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'].map((digit, index) =>
             digit === '' ? <View key={index} style={styles.key} /> :
               <Pressable key={index} accessibilityRole="button" accessibilityLabel={digit === 'back' ? 'Apagar dígito' : digit}
-                style={[styles.key, digit !== 'back' && styles.keyCircle]}
+                disabled={busy} style={[styles.key, digit !== 'back' && styles.keyCircle]}
                 onPress={() => digit === 'back' ? setPin((current) => current.slice(0, -1)) : enterDigit(digit)}>
                 {digit === 'back' ? <IconBackspace size={27} color={colors.surface} /> : <Text style={styles.keyText}>{digit}</Text>}
               </Pressable>)}
         </View>
       </>}
-      {mode === 'biometric' && <Pressable accessibilityRole="button" style={styles.biometricAction} onPress={unlockBiometricDemo}>
+      {mode === 'biometric' && <Pressable accessibilityRole="button" style={styles.biometricAction} disabled={busy} onPress={biometric}>
         <IconFingerprint size={25} color={colors.surface} />
-        <Text style={styles.biometricText}>Simular desbloqueio biométrico</Text>
+        <Text style={styles.biometricText}>{busy ? 'Autenticando…' : 'Desbloquear com biometria'}</Text>
       </Pressable>}
+      {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     </View>
     {security.biometricEnabled && security.pinConfigured && <Pressable accessibilityRole="button" style={styles.alternative}
-      onPress={() => { setMode(mode === 'pin' ? 'biometric' : 'pin'); setPin(''); setError(''); }}>
+      disabled={busy} onPress={() => { setMode(mode === 'pin' ? 'biometric' : 'pin'); setPin(''); setError(''); }}>
       <Text style={styles.alternativeText}>{mode === 'pin' ? 'Usar biometria' : 'Usar PIN'}</Text>
     </Pressable>}
-    <Text style={styles.demoNote}>Proteção local demonstrativa. Biometria nativa indisponível nesta versão.</Text>
+    <Pressable accessibilityRole="button" disabled={busy} onPress={signOut}><Text style={styles.demoNote}>Sair da conta e entrar novamente</Text></Pressable>
   </SafeAreaView>;
 }
 

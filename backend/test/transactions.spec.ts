@@ -5,6 +5,7 @@ import { ProfilesService } from '../src/modules/profiles/profiles.service';
 import { CreateTransactionDto } from '../src/modules/transactions/dto/create-transaction.dto';
 import { TransactionsRepository } from '../src/modules/transactions/transactions.repository';
 import { TransactionsService } from '../src/modules/transactions/transactions.service';
+import { TagsRepository } from '../src/modules/tags/tags.repository';
 
 describe('TransactionsService', () => {
   const userId = 'usuario';
@@ -26,6 +27,9 @@ describe('TransactionsService', () => {
   let findCategory: jest.Mock;
   let findSubcategory: jest.Mock;
   let current: Transacao;
+  const tx = {} as Prisma.TransactionClient;
+  let createAudit: jest.Mock;
+  let deleteByProfileAndId: jest.Mock;
 
   beforeEach(() => {
     current = {
@@ -46,10 +50,16 @@ describe('TransactionsService', () => {
     updateByProfileAndId = jest.fn().mockImplementation(async (_perfilId: string, _id: string, data: object) => ({ ...current, ...data }));
     findCategory = jest.fn().mockResolvedValue({ id: categoriaId, ativa: true });
     findSubcategory = jest.fn().mockResolvedValue({ id: subcategoriaId, perfilId: profileId, categoriaId, ativa: true });
-    const transactions = { create, findByProfileAndId, updateByProfileAndId } as unknown as TransactionsRepository;
+    createAudit = jest.fn().mockResolvedValue({ id: 'auditoria' });
+    deleteByProfileAndId = jest.fn().mockResolvedValue({ count: 1 });
+    const transactions = {
+      lock: jest.fn().mockResolvedValue(undefined),
+      create, findByProfileAndId, updateByProfileAndId, createAudit, deleteByProfileAndId,
+      transaction: (operation: (client: Prisma.TransactionClient) => Promise<unknown>) => operation(tx),
+    } as unknown as TransactionsRepository;
     const profiles = { assertOwnership: jest.fn().mockResolvedValue({ id: profileId, usuarioId: userId }) } as unknown as ProfilesService;
     const categories = { findCategory, findSubcategory } as unknown as CategoriesRepository;
-    service = new TransactionsService(transactions, profiles, categories);
+    service = new TransactionsService(transactions, profiles, categories, {} as TagsRepository);
   });
 
   it('cria despesa válida com Decimal, perfil e defaults documentados', async () => {
@@ -59,7 +69,7 @@ describe('TransactionsService', () => {
     expect(result.essencialidade).toBe(Essencialidade.NAO_CLASSIFICADA);
     expect(create).toHaveBeenCalledWith(profileId, expect.objectContaining({
       valor: new Prisma.Decimal('15.75'), categoriaId, ehGastoLivre: false,
-    }));
+    }), tx);
   });
 
   it('rejeita valor não positivo e categoria ausente na transação normal', async () => {
@@ -117,7 +127,51 @@ describe('TransactionsService', () => {
     expect(result.subcategoriaId).toBeNull();
     expect(updateByProfileAndId).toHaveBeenCalledWith(profileId, current.id, expect.objectContaining({
       categoriaId: null, subcategoriaId: null, ehGastoLivre: true,
-    }));
+    }), tx);
+  });
+
+  it('audita criação com todos os campos escalares, Decimal, ISO e null', async () => {
+    await service.create(userId, profileId, base);
+    expect(createAudit).toHaveBeenCalledWith(expect.objectContaining({
+      perfilId: profileId, transacaoId: 'nova', operacao: 'CRIACAO', estadoAnterior: Prisma.DbNull,
+      estadoNovo: expect.objectContaining({ valor: '15.75', dataHora: '2026-09-29T18:30:00.000Z', anotacao: null }),
+    }), tx);
+    expect(Object.keys(createAudit.mock.calls[0][0].estadoNovo).sort()).toEqual(Object.keys(current).sort());
+  });
+
+  it('audita edição com antes e depois', async () => {
+    await service.update(userId, profileId, current.id, { valor: '20.25', descricao: 'Revisada' });
+    expect(createAudit).toHaveBeenCalledWith(expect.objectContaining({
+      operacao: 'EDICAO', estadoAnterior: expect.objectContaining({ valor: '15.75', descricao: 'Compra' }),
+      estadoNovo: expect.objectContaining({ valor: '20.25', descricao: 'Revisada' }),
+    }), tx);
+  });
+
+  it('edita ocorrência gerada sem impor categoria ou transformar em gasto livre', async () => {
+    current.categoriaId = null; current.subcategoriaId = null; current.recorrenciaId = 'recorrencia';
+    const result = await service.update(userId, profileId, current.id, { anotacao: 'Anotação da ocorrência' });
+    expect(result.categoriaId).toBeNull(); expect(result.ehGastoLivre).toBe(false);
+    expect(result.recorrenciaId).toBe('recorrencia');
+    expect(createAudit).toHaveBeenCalledWith(expect.objectContaining({
+      estadoNovo: expect.objectContaining({ anotacao: 'Anotação da ocorrência', categoriaId: null, ehGastoLivre: false }),
+    }), tx);
+  });
+
+  it('registra snapshot de exclusão antes do DELETE físico', async () => {
+    await service.reverse(userId, profileId, current.id);
+    expect(createAudit).toHaveBeenCalledWith(expect.objectContaining({
+      operacao: 'EXCLUSAO', estadoAnterior: expect.objectContaining({ id: current.id, valor: '15.75' }),
+      estadoNovo: Prisma.DbNull,
+    }), tx);
+    expect(createAudit.mock.invocationCallOrder[0]).toBeLessThan(deleteByProfileAndId.mock.invocationCallOrder[0]);
+    expect(deleteByProfileAndId).toHaveBeenCalledWith(profileId, current.id, tx);
+  });
+
+  it('não exclui se a gravação da auditoria falha', async () => {
+    const error = new Error('falha de auditoria');
+    createAudit.mockRejectedValue(error);
+    await expect(service.reverse(userId, profileId, current.id)).rejects.toBe(error);
+    expect(deleteByProfileAndId).not.toHaveBeenCalled();
   });
 });
 

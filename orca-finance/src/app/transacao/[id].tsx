@@ -1,12 +1,18 @@
+
+import { CategoryIcon } from '@/components/common/CategoryIcon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { IconArrowLeft, IconCalendar, IconClock, IconCreditCard, IconHash, IconNotes, IconPencil, IconPhoto, IconShoppingCart, IconStar, IconBuildingStore, IconTag, IconWallet } from '@tabler/icons-react-native';
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { IconArrowLeft, IconCalendar, IconClock, IconCreditCard, IconHash, IconNotes, IconPencil, IconPhoto, IconShoppingCart, IconStar, IconBuildingStore, IconWallet } from '@tabler/icons-react-native';
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppCard } from '@/components/common/AppCard';
 import { TransactionDetailRow } from '@/components/domain/TransactionDetailRow';
+import { ReceiptUploadModal } from '@/components/domain/ReceiptUploadModal';
+import { getRemoteRecurrence, recurrenceConfiguration as mapRecurrenceConfiguration, updateRemoteRecurrence } from '@/services/recurrence.service';
 import { RecurrenceConfigurationModal } from '@/components/domain/RecurrenceConfigurationModal';
-import { getRecurrenceForTransaction, updateRecurrence } from '@/services/recurrence.service';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { AsyncState } from '@/components/common/AsyncState';
+import { errorMessage, getApiSession } from '@/services/api-client';
 import { getTransactionById, reverseTransaction } from '@/services/transaction.service';
 import type { Essentiality, PaymentMethod } from '@/types/transaction';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
@@ -27,25 +33,37 @@ export default function TransactionDetailScreen() {
   const router = useRouter();
   const [reversalOpen, setReversalOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptUri, setReceiptUri] = useState<string | null>(null);
+  const [receiptUploadOpen, setReceiptUploadOpen] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+  const [imageAttempt, setImageAttempt] = useState(0);
   const [recurrenceOpen, setRecurrenceOpen] = useState(false);
-  const [, setRevision] = useState(0);
-  const transaction = typeof id === 'string' ? getTransactionById(id) : undefined;
-  const recurrence = transaction ? getRecurrenceForTransaction(transaction.id) : undefined;
+  const [busy, setBusy] = useState(false); const sending = useRef(false);
+  const load = useCallback(async () => {
+    if (typeof id !== 'string') throw new Error('Identificador inválido.');
+    const transaction = await getTransactionById(id);
+    const recurrence = transaction.recurrenceId ? await getRemoteRecurrence(transaction.recurrenceId) : undefined;
+    return { transaction, recurrence };
+  }, [id]);
+  const { data, loading, error, reload } = useProfileResource(load);
+  const transaction = data?.transaction; const recurrence = data?.recurrence;
+  const recurrenceConfiguration = useMemo(() => recurrence ? mapRecurrenceConfiguration(recurrence) : undefined, [recurrence]);
+  const edit = () => { if (transaction) router.push({ pathname: '/transacao/nova', params: { editId: transaction.id } }); };
   const goBack = () => router.canGoBack() ? router.back() : router.replace('/(tabs)/transacoes');
   const isExpense = transaction?.type === 'expense';
   const amountStyle = isExpense ? styles.expense : styles.income;
-  const receiptUri = transaction?.receiptUri;
-  // O mock:// existente não aponta para uma imagem real. URIs de arquivo/imagem são exibidas quando disponíveis.
-  const canOpenReceipt = !!receiptUri && /^(https?:\/\/|file:\/\/|content:\/\/|data:image\/)/i.test(receiptUri);
+  const canOpenReceipt = !!receiptUri && /^https?:\/\//i.test(receiptUri);
 
   const rows = transaction ? [
-    { label: 'Categoria', value: transaction.categoryName, icon: <IconTag {...iconProps} /> },
+    { label: 'Categoria', value: transaction.categoryName, icon: <CategoryIcon name={transaction.categoryName} /> },
     ...(transaction.subcategoryName ? [{ label: 'Subcategoria', value: transaction.subcategoryName, icon: <IconBuildingStore {...iconProps} /> }] : []),
     { label: 'Data', value: formatTransactionDate(transaction.date), icon: <IconCalendar {...iconProps} /> },
     { label: 'Hora', value: transaction.time, icon: <IconClock {...iconProps} /> },
     ...(transaction.paymentMethod ? [{ label: 'Método de pagamento', value: paymentLabels[transaction.paymentMethod], icon: <IconCreditCard {...iconProps} /> }] : []),
     ...(transaction.tags.length ? [{ label: 'Tags', value: transaction.tags.map((tag) => tag.startsWith('#') ? tag : `#${tag}`).join(' '), icon: <IconHash {...iconProps} /> }] : []),
     ...(transaction.essentiality ? [{ label: 'Essencialidade', value: essentialityLabels[transaction.essentiality], icon: <IconStar {...iconProps} /> }] : []),
+    ...(transaction.freeSpending ? [{ label: 'Gasto livre', value: 'Sim', icon: <IconWallet {...iconProps} /> }] : []),
     ...(transaction.notes ? [{ label: 'Anotações', value: transaction.notes, icon: <IconNotes {...iconProps} /> }] : []),
   ] : [];
 
@@ -56,13 +74,14 @@ export default function TransactionDetailScreen() {
           <IconArrowLeft {...iconProps} />
         </Pressable>
         <Text style={styles.title}>Detalhes da transação</Text>
-        {transaction && <Pressable disabled style={styles.iconButton} accessibilityRole="button"
-          accessibilityLabel="Editar transação indisponível" accessibilityState={{ disabled: true }}>
+        {transaction && <Pressable onPress={edit} style={styles.iconButton} accessibilityRole="button"
+          accessibilityLabel="Editar transação">
           <IconPencil {...iconProps} color={colors.navInactive} />
         </Pressable>}
       </View>
-      {!transaction ? <Text style={styles.empty}>Transação não encontrada</Text> : (
+      {!transaction ? <AsyncState loading={loading} error={error ?? 'Transação não encontrada'} onRetry={reload} /> : (
         <ScrollView contentContainerStyle={styles.content}>
+          {!!error && <AsyncState error={error} onRetry={reload} />}
           <View style={styles.summary}>
             <Text style={[styles.amount, amountStyle]}>{isExpense ? '- ' : '+ '}{formatCurrency(transaction.amountCents)}</Text>
             <Text style={styles.description}>{transaction.description}</Text>
@@ -75,76 +94,85 @@ export default function TransactionDetailScreen() {
           <AppCard style={styles.details}>
             {rows.map((row, index) => <TransactionDetailRow key={row.label} {...row} showDivider={index < rows.length - 1} />)}
           </AppCard>
-          {!!receiptUri && <AppCard>
+          {!!transaction.receipts.length && <AppCard>
             <Text style={styles.secondary}>Comprovante</Text>
-            <Pressable onPress={() => setReceiptOpen(true)} disabled={!canOpenReceipt} style={styles.receipt}
-              accessibilityRole="button" accessibilityState={{ disabled: !canOpenReceipt }}>
-              <IconPhoto {...iconProps} /><Text style={styles.body}>Ver recibo{!canOpenReceipt ? ' — indisponível' : ''}</Text>
-            </Pressable>
-            {!canOpenReceipt && <Text style={styles.secondary}>Comprovante sem arquivo disponível para visualização.</Text>}
+            {transaction.receipts.map((receipt, index) => {
+              const available = /^https?:\/\//i.test(receipt.arquivoUrl);
+              return <Pressable key={receipt.id} onPress={() => {
+                if (receipt.mimeType?.startsWith('image/')) { setReceiptUri(receipt.arquivoUrl); setImageLoading(true); setImageError(false); setReceiptOpen(true); }
+                else Linking.openURL(receipt.arquivoUrl).catch(() => Alert.alert('Comprovante', 'Não foi possível abrir o arquivo.'));
+              }} disabled={!available} style={styles.receipt} accessibilityRole="button" accessibilityState={{ disabled: !available }}>
+                <IconPhoto {...iconProps} /><Text style={styles.body}>Ver recibo{transaction.receipts.length > 1 ? ` ${index + 1}` : ''}{!available ? ' — indisponível' : ''}</Text>
+              </Pressable>;
+            })}
           </AppCard>}
+          {isExpense && <Pressable accessibilityRole="button" style={styles.edit} onPress={() => setReceiptUploadOpen(true)}><Text style={styles.editText}>Adicionar recibo</Text></Pressable>}
           {recurrence && <AppCard>
             <Text style={styles.secondary}>Recorrência</Text>
-            <Text style={styles.body}>{recurrence.configuration.recurring ? 'Mensal' : 'Desativada'}</Text>
+            <Text style={styles.body}>{recurrence.ativa ? ({ SEMANAL: 'Semanal', MENSAL: 'Mensal', ANUAL: 'Anual' }[recurrence.frequencia]) : 'Desativada'}</Text>
+            <Text style={styles.secondary}>Próxima: {new Date(recurrence.proximaOcorrencia).toLocaleString('pt-BR')}</Text>
             <Pressable accessibilityRole="button" style={styles.receipt} onPress={() => setRecurrenceOpen(true)}>
               <Text style={styles.editText}>Editar configuração futura</Text>
             </Pressable>
           </AppCard>}
-          {/* A edição geral ainda não foi implementada; reversão possui regra consolidada. */}
-          <Pressable disabled accessibilityRole="button" accessibilityState={{ disabled: true }} style={[styles.edit, { opacity: 0.5 }]}>
-            <Text style={styles.editText}>Editar transação — indisponível</Text>
+          <Pressable onPress={edit} accessibilityRole="button" style={styles.edit}>
+            <Text style={styles.editText}>Editar transação</Text>
           </Pressable>
           <Pressable onPress={() => setReversalOpen(true)} accessibilityRole="button" style={styles.revert}>
             <Text style={[styles.body, styles.expense]}>Reverter transação</Text>
           </Pressable>
         </ScrollView>
       )}
-      <Modal visible={reversalOpen && !!transaction} transparent animationType="fade" onRequestClose={() => setReversalOpen(false)}>
+      <Modal visible={reversalOpen && !!transaction} transparent animationType="fade" onRequestClose={() => { if (!busy) setReversalOpen(false); }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Reverter transação?</Text>
             <Text style={styles.modalText}>Esta transação deixará os registros financeiros ativos e não será mais considerada no saldo, orçamento ou relatórios. A reversão ficará registrada na auditoria.</Text>
             <Text style={styles.modalSummary}>{transaction?.description} · {transaction && formatCurrency(transaction.amountCents)}</Text>
             <View style={styles.modalActions}>
-              <Pressable accessibilityRole="button" style={styles.cancelButton} onPress={() => setReversalOpen(false)}>
+              <Pressable accessibilityRole="button" disabled={busy} style={styles.cancelButton} onPress={() => setReversalOpen(false)}>
                 <Text style={styles.cancelText}>Cancelar</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" style={styles.confirmButton} onPress={() => {
-                if (!transaction) return;
+              <Pressable accessibilityRole="button" disabled={busy} accessibilityState={{ busy, disabled: busy }} style={styles.confirmButton} onPress={async () => {
+                if (!transaction || sending.current) return;
+                sending.current = true; setBusy(true);
+                const revision = getApiSession().revision;
                 try {
-                  reverseTransaction(transaction.id);
-                  setReversalOpen(false);
-                  router.replace('/(tabs)/transacoes');
-                } catch (error) {
-                  Alert.alert('Não foi possível reverter', error instanceof Error ? error.message : 'Tente novamente.');
-                }
-              }}><Text style={styles.confirmText}>Reverter transação</Text></Pressable>
+                  await reverseTransaction(transaction.id);
+                  if (revision !== getApiSession().revision) return;
+                  setReversalOpen(false); router.replace('/(tabs)/transacoes');
+                } catch (caught) {
+                  if (revision === getApiSession().revision) Alert.alert('Não foi possível reverter', errorMessage(caught));
+                } finally { sending.current = false; setBusy(false); }
+              }}><Text style={styles.confirmText}>{busy ? 'Revertendo…' : 'Reverter transação'}</Text></Pressable>
             </View>
           </View>
         </View>
       </Modal>
-      {recurrence && <RecurrenceConfigurationModal visible={recurrenceOpen}
-        value={recurrence.configuration} onCancel={() => setRecurrenceOpen(false)}
-        onSave={(configuration) => {
+      {recurrence && recurrenceConfiguration && <RecurrenceConfigurationModal visible={recurrenceOpen} busy={busy} remindersAvailable={false}
+        value={recurrenceConfiguration}
+        onCancel={() => setRecurrenceOpen(false)} onSave={async configuration => {
+          if (sending.current) return;
+          const revision = getApiSession().revision;
+          sending.current = true; setBusy(true);
           try {
-            updateRecurrence(recurrence.id, configuration);
-            setRecurrenceOpen(false);
-            setRevision((value) => value + 1);
-            if (transaction && !getTransactionById(transaction.id)) {
-              router.replace({ pathname: '/transacao/[id]', params: { id: recurrence.baseTransactionId } });
-            }
-          } catch (error) {
-            Alert.alert('Não foi possível atualizar', error instanceof Error ? error.message : 'Tente novamente.');
-          }
+            await updateRemoteRecurrence(recurrence, configuration);
+            if (revision === getApiSession().revision) { setRecurrenceOpen(false); reload(); }
+          } catch (caught) {
+            if (revision === getApiSession().revision) Alert.alert('Não foi possível atualizar', errorMessage(caught));
+          } finally { sending.current = false; setBusy(false); }
         }} />}
       <Modal visible={receiptOpen && canOpenReceipt} animationType="slide" onRequestClose={() => setReceiptOpen(false)}>
         <SafeAreaView style={styles.receiptViewer}>
           <Pressable accessibilityRole="button" accessibilityLabel="Fechar comprovante" onPress={() => setReceiptOpen(false)}>
             <Text style={styles.editText}>Fechar</Text>
           </Pressable>
-          {receiptUri && <Image source={{ uri: receiptUri }} style={styles.receiptImage} resizeMode="contain" />}
+          {imageLoading && !imageError && <ActivityIndicator color={colors.primary} />}
+          {imageError ? <AsyncState error="Não foi possível carregar o comprovante." onRetry={() => { setImageError(false); setImageLoading(true); setImageAttempt(v => v + 1); }} />
+            : receiptUri && <Image key={imageAttempt} source={{ uri: receiptUri }} style={styles.receiptImage} resizeMode="contain" onLoadEnd={() => setImageLoading(false)} onError={() => { setImageError(true); setImageLoading(false); }} />}
         </SafeAreaView>
       </Modal>
+      {transaction && receiptUploadOpen && <ReceiptUploadModal transactionId={transaction.id} onClose={() => setReceiptUploadOpen(false)} onSaved={() => { setReceiptUploadOpen(false); reload(); }} />}
     </SafeAreaView>
   );
 }
@@ -167,7 +195,7 @@ const styles = StyleSheet.create({
   receipt: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, minHeight: 44 },
   receiptViewer: { flex: 1, padding: spacing.lg, backgroundColor: colors.background },
   receiptImage: { flex: 1, width: '100%' },
-  edit: { minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: radius.input, borderWidth: 0.5, borderColor: colors.primary, opacity: 0.5, padding: spacing.sm },
+  edit: { minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: radius.input, borderWidth: 0.5, borderColor: colors.primary, padding: spacing.sm },
   editText: { fontFamily: fontFamily.medium, fontSize: fontSize.body, color: colors.primary, textAlign: 'center' },
   revert: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   modalOverlay: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: 'rgba(16,32,46,0.5)' },

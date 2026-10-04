@@ -1,7 +1,6 @@
 import {
     IconArrowDown,
     IconArrowUp,
-    IconEye,
 } from '@tabler/icons-react-native';
 
 import {
@@ -43,11 +42,6 @@ export function FinancialSummaryCard({
             Saldo atual
           </Text>
 
-          <IconEye
-            size={24}
-            color={colors.surface}
-            strokeWidth={2}
-          />
         </View>
 
         <Text style={styles.balance}>

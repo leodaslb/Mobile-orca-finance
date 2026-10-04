@@ -1,99 +1,61 @@
-import { recurrencesMock, type RecurrenceRule } from '@/data/mocks/recurrences.mock';
-import { mockScenario } from '@/data/mocks/scenario.mock';
-import { transactionsMock } from '@/data/mocks/transactions.mock';
-import { createTransactionRecord as createTransaction } from '@/services/transaction-write.service';
 import type { CreateTransactionInput, RecurrenceConfiguration } from '@/types/transaction';
+import { apiRequest, getApiSession, profilePath } from '@/services/api-client';
+import { transactionPayload } from '@/services/transaction.service';
+import { localDateTimeToISO, timestampToLocal } from '@/utils/date';
+import { centsToDecimal, decimalToCents } from '@/utils/currency';
 
-let nextRuleNumber = 1;
-
-function nextMonthlyDate(anchor: string, months: number) {
-  const [year, month, day] = anchor.split('-').map(Number);
-  const target = new Date(Date.UTC(year, month - 1 + months, 1));
-  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  // Decisão de produto: dias 29–31 usam o último dia do mês quando necessário.
-  return new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(day, lastDay)))
-    .toISOString().slice(0, 10);
+export const recurrenceEnums = { weekly: 'SEMANAL', monthly: 'MENSAL', yearly: 'ANUAL' } as const;
+export const recurrenceLabels = { weekly: 'Semanal', monthly: 'Mensal', yearly: 'Anual' } as const;
+export interface RemoteRecurrence { id: string; frequencia: 'SEMANAL' | 'MENSAL' | 'ANUAL'; ativa: boolean; proximaOcorrencia: string; dataTermino: string | null; descricao: string; valor: string }
+export interface RemoteReminder { id: string; transacaoId: string | null; recorrenciaId: string | null; notificarEm: string; ativo: boolean }
+export function getRemoteRecurrences() { return apiRequest<RemoteRecurrence[]>(profilePath('recurrences')); }
+export function getRemoteReminders() { return apiRequest<RemoteReminder[]>(profilePath('reminders')); }
+export function recurrenceConfiguration(item: RemoteRecurrence): RecurrenceConfiguration {
+  return { recurring: item.ativa, frequency: item.frequencia === 'SEMANAL' ? 'weekly' : item.frequencia === 'ANUAL' ? 'yearly' : 'monthly',
+    nextOccurrence: timestampToLocal(item.proximaOcorrencia).date, endDate: item.dataTermino,
+    description: item.descricao, amountCents: item.valor === undefined ? undefined : decimalToCents(item.valor), reminder: false, dueDate: null };
 }
-
-function cloneRule(rule: RecurrenceRule): RecurrenceRule {
-  return { ...rule, template: { ...rule.template, tags: [...(rule.template.tags ?? [])] },
-    configuration: { ...rule.configuration }, generatedDates: [...rule.generatedDates] };
+export function updateRemoteReminder(id: string, input: { active: boolean; date?: string; time?: string }) {
+  return apiRequest<RemoteReminder>(profilePath(`reminders/${encodeURIComponent(id)}`), { method: 'PATCH', body: {
+    ativo: input.active, ...(input.date && input.time && { notificarEm: localDateTimeToISO(input.date, input.time) }),
+  } });
 }
-
-export function saveRecurrence(baseTransactionId: string, input: CreateTransactionInput, configuration: RecurrenceConfiguration) {
-  if (!configuration.recurring && !configuration.reminder) return null;
-  if (configuration.recurring && (!configuration.nextOccurrence || Number.isNaN(Date.parse(configuration.nextOccurrence)))) {
-    throw new Error('Informe a próxima ocorrência.');
+export function getRemoteRecurrence(id: string) {
+  return apiRequest<RemoteRecurrence>(profilePath(`recurrences/${encodeURIComponent(id)}`));
+}
+export function updateRemoteRecurrence(original: RemoteRecurrence, configuration: RecurrenceConfiguration) {
+  const local = timestampToLocal(original.proximaOcorrencia);
+  return apiRequest<RemoteRecurrence>(profilePath(`recurrences/${encodeURIComponent(original.id)}`), {
+    method: 'PATCH', body: {
+      ativa: configuration.recurring,
+      ...(configuration.description !== undefined && configuration.description.trim() !== original.descricao && { descricao: configuration.description.trim() }),
+      ...(configuration.amountCents !== undefined && centsToDecimal(configuration.amountCents) !== original.valor && { valor: centsToDecimal(configuration.amountCents) }),
+      ...(recurrenceEnums[configuration.frequency] !== original.frequencia && { frequencia: recurrenceEnums[configuration.frequency] }),
+      ...(configuration.endDate !== undefined && configuration.endDate !== original.dataTermino && { dataTermino: configuration.endDate }),
+      ...(configuration.recurring && configuration.nextOccurrence && configuration.nextOccurrence !== local.date && {
+        proximaOcorrencia: localDateTimeToISO(configuration.nextOccurrence, local.time),
+      }),
+    },
+  });
+}
+export async function configureRemoteRecurrence(transactionId: string, input: CreateTransactionInput,
+  config: RecurrenceConfiguration, profileId: string) {
+  let recurrence: RemoteRecurrence | undefined;
+  if (config.recurring) {
+    if (!config.nextOccurrence) throw new Error('Informe a próxima ocorrência.');
+    const payload = transactionPayload(input);
+    recurrence = await apiRequest<RemoteRecurrence>(profilePath('recurrences', profileId), { method: 'POST', body: {
+      tipoTransacao: payload.tipo, valor: payload.valor, descricao: payload.descricao,
+      categoriaId: payload.categoriaId, subcategoriaId: payload.subcategoriaId, metodoPagamento: payload.metodoPagamento,
+      frequencia: recurrenceEnums[config.frequency], proximaOcorrencia: localDateTimeToISO(config.nextOccurrence, input.time), dataTermino: config.endDate ?? null,
+    } });
   }
-  const base = transactionsMock.find((item) => item.id === baseTransactionId && item.profileId === mockScenario.activeProfileId);
-  if (!base) throw new Error('Transação base não encontrada.');
-  const rule: RecurrenceRule = {
-    id: `recurrence-${String(nextRuleNumber++).padStart(3, '0')}`,
-    profileId: mockScenario.activeProfileId,
-    baseTransactionId,
-    template: { ...input, tags: [...(input.tags ?? [])] },
-    configuration: { ...configuration },
-    generatedDates: configuration.nextOccurrence === base.date ? [base.date] : [],
-  };
-  base.recurrenceId = rule.id;
-  recurrencesMock.push(rule);
-  processRecurrences();
-  return cloneRule(rule);
-}
-
-export function createTransactionWithRecurrence(input: CreateTransactionInput, configuration: RecurrenceConfiguration) {
-  if (configuration.recurring && (!configuration.nextOccurrence || Number.isNaN(Date.parse(configuration.nextOccurrence)))) {
-    throw new Error('Informe a próxima ocorrência.');
+  if (config.reminder) {
+    if (!config.dueDate || !config.reminderTime) throw new Error('Informe data e horário do lembrete.');
+    await apiRequest(profilePath('reminders', profileId), { method: 'POST', body: {
+      ...(recurrence ? { recorrenciaId: recurrence.id } : { transacaoId: transactionId }),
+      notificarEm: localDateTimeToISO(config.dueDate, config.reminderTime),
+    } });
   }
-  const created = createTransaction(input);
-  saveRecurrence(created.id, input, configuration);
-  return created;
-}
-
-export function processRecurrences(referenceDate = mockScenario.referenceDate) {
-  for (const rule of recurrencesMock) {
-    if (rule.profileId !== mockScenario.activeProfileId || !rule.configuration.recurring || !rule.configuration.nextOccurrence) continue;
-    for (const transaction of transactionsMock) {
-      if (transaction.recurrenceId === rule.id && transaction.date <= referenceDate) transaction.status = 'effective';
-    }
-    const anchor = rule.configuration.nextOccurrence;
-    for (let month = 0; month < 1200; month += 1) {
-      const occurrenceDate = nextMonthlyDate(anchor, month);
-      if (!rule.generatedDates.includes(occurrenceDate)) {
-        const created = createTransaction({ ...rule.template, date: occurrenceDate });
-        const stored = transactionsMock.find((item) => item.id === created.id);
-        if (stored) {
-          stored.recurrenceId = rule.id;
-          stored.status = occurrenceDate <= referenceDate ? 'effective' : 'scheduled';
-        }
-        rule.generatedDates.push(occurrenceDate);
-      }
-      if (occurrenceDate > referenceDate) break;
-    }
-  }
-}
-
-export function getRecurrenceForTransaction(transactionId: string) {
-  const rule = recurrencesMock.find((item) => item.profileId === mockScenario.activeProfileId &&
-    (item.baseTransactionId === transactionId || transactionsMock.some((transaction) =>
-      transaction.id === transactionId && transaction.recurrenceId === item.id)));
-  return rule ? cloneRule(rule) : undefined;
-}
-
-export function updateRecurrence(ruleId: string, configuration: RecurrenceConfiguration) {
-  const rule = recurrencesMock.find((item) => item.id === ruleId && item.profileId === mockScenario.activeProfileId);
-  if (!rule) throw new Error('Recorrência não encontrada.');
-  if (configuration.recurring && (!configuration.nextOccurrence || configuration.nextOccurrence <= mockScenario.referenceDate)) {
-    throw new Error('A próxima ocorrência deve ser futura.');
-  }
-  for (let index = transactionsMock.length - 1; index >= 0; index -= 1) {
-    const item = transactionsMock[index];
-    if (item.recurrenceId === ruleId && item.date > mockScenario.referenceDate && item.id !== rule.baseTransactionId) {
-      transactionsMock.splice(index, 1);
-    }
-  }
-  rule.generatedDates = rule.generatedDates.filter((date) => date <= mockScenario.referenceDate);
-  rule.configuration = { ...configuration };
-  processRecurrences();
-  return cloneRule(rule);
+  return recurrence;
 }

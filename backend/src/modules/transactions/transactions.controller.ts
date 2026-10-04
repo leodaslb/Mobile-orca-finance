@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthenticatedRequest } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { TransactionQueryDto } from './dto/transaction-query.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { SetTransactionTagsDto } from './dto/set-transaction-tags.dto';
 import { TransactionsService } from './transactions.service';
 
 @UseGuards(JwtAuthGuard)
@@ -46,5 +47,25 @@ export class TransactionsController {
     @Body() dto: UpdateTransactionDto,
   ) {
     return this.transactions.update(request.user.id, profileId, transactionId, dto);
+  }
+
+  @Delete(':transactionId')
+  @HttpCode(204)
+  reverse(
+    @Req() request: AuthenticatedRequest,
+    @Param('profileId', ParseUUIDPipe) profileId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+  ) {
+    return this.transactions.reverse(request.user.id, profileId, transactionId);
+  }
+
+  @Put(':transactionId/tags')
+  setTags(
+    @Req() request: AuthenticatedRequest,
+    @Param('profileId', ParseUUIDPipe) profileId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+    @Body() dto: SetTransactionTagsDto,
+  ) {
+    return this.transactions.setTags(request.user.id, profileId, transactionId, dto.tagIds);
   }
 }

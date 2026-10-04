@@ -59,6 +59,31 @@ describe('Bootstrap NestJS + Fastify', () => {
     expect(response.json()).toEqual({ status: 'ok' });
   });
 
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'])('aceita preflight CORS para %s com JSON e Bearer token', async (method) => {
+    const response = await app.inject({
+      method: 'OPTIONS', url: '/profiles',
+      headers: {
+        origin: 'http://localhost:8081',
+        'access-control-request-method': method,
+        'access-control-request-headers': 'content-type,authorization',
+      },
+    });
+    expect(response.statusCode).toBe(204);
+    expect(response.headers['access-control-allow-origin']).toBe('*');
+    expect(String(response.headers['access-control-allow-methods']).split(',').map((value) => value.trim())).toContain(method);
+    expect(String(response.headers['access-control-allow-headers']).toLowerCase()).toContain('authorization');
+    expect(String(response.headers['access-control-allow-headers']).toLowerCase()).toContain('content-type');
+    expect(response.headers['access-control-allow-credentials']).toBeUndefined();
+  });
+
+  it('mantém autenticação e headers CORS na resposta de rota protegida', async () => {
+    const response = await app.inject({
+      method: 'GET', url: '/profiles', headers: { origin: 'http://localhost:8081' },
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.headers['access-control-allow-origin']).toBe('*');
+  });
+
   it('transforma payload em DTO e converte tipo declarado', async () => {
     const response = await app.inject({
       method: 'POST', url: '/validation-probe', payload: { count: '2' },
