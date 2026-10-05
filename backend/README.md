@@ -666,16 +666,25 @@ população; os dados demo devem permanecer disponíveis para a integração.
 
 O script `prisma/seed-demo.cjs` é separado do seed oficial do catálogo e usa
 os Services existentes, preservando ownership, Decimal, auditoria e snapshots.
-Movimentações/metas/reflexões usam o marcador `[DEMO 2026-10]`; tags usam `#demo`
-e subcategorias, `[DEMO]`. A segunda execução com os mesmos parâmetros criou
-zero registros. Ela reutiliza os dados por marcador/chaves do período e não
-restaura objetos que o usuário tenha editado ou cancelado. Os passos confirmados
-podem ser retomados após falha; o seed completo não é uma única transação.
+Atualização de 04/10/2026: o comando principal é `seed:apresentacao`; `seed:demo`
+permanece como alias de compatibilidade. Novos dados usam nomes naturais como
+Salário, Supermercado, Viagem e Fone de ouvido, sem prefixos de demonstração ou
+período. Tags: `#Pessoal`, `#Essencial`, `#Planejado`. Subcategorias: Supermercado,
+Aplicativos e Cinema. Não há anotação técnica ou criação de recibo com URL de
+exemplo; adicione imagens reais pelo app para apresentar anexos.
+
+As transações são reutilizadas por perfil, descrição, tipo, valor e data/hora;
+metas/reflexões/recorrências são reutilizadas por perfil e nome/descrição.
+Objetos editados ou cancelados não são restaurados. Os passos confirmados podem
+ser retomados após falha; o seed completo não é uma única transação. O script
+também reconhece os prefixos antigos do mesmo período para reutilizar esses
+registros. Essa mudança não renomeia automaticamente dados antigos já gravados;
+a limpeza dos rótulos existentes é uma operação separada sobre o perfil escolhido.
 
 Execute dentro de `backend/`:
 
 ```powershell
-npm run seed:demo -- --user-id 5c7d6752-8916-47bb-9895-0c719b239918 --profile-id 2dc0a74f-ceec-4c68-8b8b-72a6e1ed78e4 --reference-date 2026-10-02
+npm run seed:apresentacao -- --user-id 5c7d6752-8916-47bb-9895-0c719b239918 --profile-id 2dc0a74f-ceec-4c68-8b8b-72a6e1ed78e4 --reference-date 2026-10-02
 ```
 
 UUIDs e data são argumentos explícitos; o script verifica o vínculo da conta

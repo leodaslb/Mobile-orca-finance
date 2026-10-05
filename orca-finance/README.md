@@ -11,6 +11,20 @@ React Native/Expo Router. Cadastro/login, sessão, perfil ativo, transações, e
 
 A API local escuta em `0.0.0.0`. Sessão fica em memória: reiniciar o app exige novo login, sem refresh token. PIN/biometria protegem o acesso local separadamente: PIN com salt/hash no SecureStore e biometria pelo Android. Falha ou cancelamento não desbloqueiam o app. Expo Web ainda depende de configuração CORS no backend.
 
+## APK com API na rede local
+
+O perfil `preview` de `eas.json` inclui `EXPO_PUBLIC_API_URL=http://192.168.1.104:3000` no bundle e gera APK. A variável é incorporada durante o build; editar `.env` depois não altera um APK instalado. O celular precisa alcançar a API nesse endereço.
+
+HTTP no Android é habilitado pelo plugin `expo-build-properties`, com `android.usesCleartextTraffic: true` nas opções do plugin. Esse campo diretamente em `expo.android` não configura o manifesto no SDK usado aqui. Em 04/10/2026, a inspeção da configuração nativa confirmou a ausência do atributo antes da correção e sua presença depois. A configuração permite HTTP para a apresentação com API local; o endereço de um backend publicado deve usar HTTPS.
+
+Depois de alterar essa configuração nativa, gere e instale um novo APK:
+
+```sh
+eas build --platform android --profile preview --clear-cache
+```
+
+O novo build requer reconstrução nativa; reiniciar Metro ou atualizar apenas JavaScript não aplica essa alteração ao APK antigo.
+
 ## Verificações
 
 ```sh
@@ -43,3 +57,6 @@ Os PNGs de `../docs/telas/` orientam a apresentação, preservando Manrope/token
 Ainda não estão completos: conversão/finalização de reflexão, upload físico e entrega remota de notificações. A validação de biometria deve distinguir sucesso em hardware real de testes dos adapters nativos substituídos. A conta e os dados existentes no Neon foram preservados; os testes usam somente suas próprias fixtures.
 
 Correções finais: [recuperação após interrupção](RECUPERACAO_INTERRUPCAO.md), [registro do bloco anterior](FECHAMENTO_MOBILE.md) e [decisões](../docs/Orca_Finance_Fechamento_Mobile.md). Histórico de aportes usa GET/POST sob a meta; Gastos por categoria permite trocar o mês; ícones das sete categorias usam um mapper central. US12 permite confirmar após espera, preenchendo novamente a compra com apenas a descrição reaproveitada, ou desistir sem lançamento.
+
+
+Melhorias de interação do formulário: [UX de transações](UX_TRANSACOES.md) documenta seletores nativos, criação contextual de subcategoria, container reutilizável de teclado, testes executados e checklist para o Galaxy M21s. A aprovação do teclado em APK físico permanece pendente.

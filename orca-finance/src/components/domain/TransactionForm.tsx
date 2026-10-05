@@ -1,3 +1,7 @@
+import { DateTimeField } from '@/components/common/DateTimeField';
+import { FormScrollView } from '@/components/common/KeyboardLayout';
+import { CreateSubcategoryModal } from '@/components/domain/CreateSubcategoryModal';
+import type { CatalogSubcategory } from '@/services/category.service';
 
 import { CategoryIcon } from '@/components/common/CategoryIcon';
 import { ReceiptPicker } from '@/components/domain/ReceiptPicker';
@@ -6,7 +10,6 @@ import { IconBell, IconChevronDown, IconChevronRight, IconChevronUp, IconRefresh
 import { useState } from 'react';
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -37,7 +40,6 @@ import type {
 } from '@/types/transaction';
 import { centsToDecimal, parseCurrencyToCents } from '@/utils/currency';
 import {
-  formatDateInput,
   formatTransactionDate,
   isValidTime,
   parseBrazilianDateToISO,
@@ -87,16 +89,6 @@ function formatMoneyInput(value: string): string {
   return `${reais},${cents.slice(0, 2)}`;
 }
 
-function formatTimeInput(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 4);
-
-  if (digits.length <= 2) {
-    return digits;
-  }
-
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-}
-
 export function TransactionForm({
   onSubmit,
   onPlaceInReflection,
@@ -115,6 +107,8 @@ export function TransactionForm({
 
   const [subcategoryId, setSubcategoryId] = useState<string | null>(initialValues?.subcategoryId ?? null);
   const [subcategoryOpen, setSubcategoryOpen] = useState(false);
+  const [creatingSubcategory, setCreatingSubcategory] = useState(false);
+  const [createdSubcategories, setCreatedSubcategories] = useState<CatalogSubcategory[]>([]);
 
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod | null>(initialValues?.paymentMethod ?? null);
@@ -144,7 +138,8 @@ export function TransactionForm({
     (category) => category.id === categoryId,
   );
 
-  const subcategories = catalogSubcategories.filter(item => item.categoryId === categoryId && (item.active || item.id === initialValues?.subcategoryId));
+  const mergedSubcategories = [...catalogSubcategories, ...createdSubcategories.filter(item => !catalogSubcategories.some(existing => existing.id === item.id))];
+  const subcategories = mergedSubcategories.filter(item => item.categoryId === categoryId && (item.active || item.id === initialValues?.subcategoryId));
 
   const selectedSubcategory = subcategories.find(
     (subcategory) => subcategory.id === subcategoryId,
@@ -275,7 +270,7 @@ export function TransactionForm({
 
   return (
     <>
-    <ScrollView
+    <FormScrollView
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
@@ -354,17 +349,7 @@ export function TransactionForm({
         <View style={styles.inputCardHalf}>
           <Text style={styles.inputLabel}>data</Text>
 
-          <TextInput
-            value={dateInput}
-            onChangeText={(value) =>
-              setDateInput(formatDateInput(value))
-            }
-            placeholder="dd/mm/aaaa"
-            placeholderTextColor={colors.navInactive}
-            keyboardType="numeric"
-            maxLength={10}
-            style={styles.cardInput}
-          />
+          <DateTimeField mode="date" value={dateInput} onChange={setDateInput} disabled={busy} />
 
           {showErrors && date === null && (
             <Text style={styles.error}>
@@ -376,17 +361,7 @@ export function TransactionForm({
         <View style={styles.inputCardHalf}>
           <Text style={styles.inputLabel}>hora</Text>
 
-          <TextInput
-            value={timeInput}
-            onChangeText={(value) =>
-              setTimeInput(formatTimeInput(value))
-            }
-            placeholder="hh:mm"
-            placeholderTextColor={colors.navInactive}
-            keyboardType="numeric"
-            maxLength={5}
-            style={styles.cardInput}
-          />
+          <DateTimeField mode="time" value={timeInput} onChange={setTimeInput} disabled={busy} />
 
           {showErrors && !isValidTime(timeInput) && (
             <Text style={styles.error}>
@@ -482,7 +457,7 @@ export function TransactionForm({
       </View>
 
       {/* SUBCATEGORIA — exibida somente quando existir */}
-      {subcategories.length > 0 && (
+      {selectedCategory && (
         <View style={styles.dropdownBlock}>
           <Pressable
             onPress={() =>
@@ -543,6 +518,10 @@ export function TransactionForm({
                   </Pressable>
                 ),
               )}
+              {selectedCategory.active && <Pressable accessibilityRole="button" accessibilityLabel="Nova subcategoria" disabled={busy}
+                onPress={() => { setSubcategoryOpen(false); setCreatingSubcategory(true); }} style={styles.dropdownOption}>
+                <Text style={styles.dropdownOptionText}>+ Nova subcategoria</Text>
+              </Pressable>}
             </View>
           )}
         </View>
@@ -865,7 +844,12 @@ export function TransactionForm({
           {busy ? 'Salvando…' : editing ? 'Salvar alterações' : 'Salvar transação'}
         </Text>
       </Pressable>
-    </ScrollView>
+    </FormScrollView>
+    {creatingSubcategory && selectedCategory && <CreateSubcategoryModal category={selectedCategory}
+      onClose={() => setCreatingSubcategory(false)} onCreated={item => {
+        setCreatedSubcategories(current => [...current.filter(existing => existing.id !== item.id), item]);
+        setSubcategoryId(item.id); setCreatingSubcategory(false);
+      }} />}
     <RecurrenceConfigurationModal
       onCancel={cancelRecurrenceConfiguration}
       onSave={(configuration) => {

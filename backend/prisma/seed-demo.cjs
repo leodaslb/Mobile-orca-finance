@@ -1,4 +1,4 @@
-// Dataset de desenvolvimento: usa os Services reais, com ownership e auditoria.
+// Dados para apresentação: usa os Services reais, com ownership e auditoria.
 // Não modifica autenticação, schema, catálogo global ou registros existentes.
 process.env.NODE_ENV = 'test'; // Impede que o Cron processe dados enquanto o seed executa.
 require('dotenv').config({ quiet: true });
@@ -9,7 +9,6 @@ const { PrismaService } = require('../dist/database/prisma.service');
 const { CategoriesService } = require('../dist/modules/categories/categories.service');
 const { TagsService } = require('../dist/modules/tags/tags.service');
 const { TransactionsService } = require('../dist/modules/transactions/transactions.service');
-const { ReceiptsService } = require('../dist/modules/transactions/receipts.service');
 const { BudgetsService } = require('../dist/modules/budgets/budgets.service');
 const { GoalsService } = require('../dist/modules/goals/goals.service');
 const { ReflectionService } = require('../dist/modules/reflection/reflection.service');
@@ -35,7 +34,8 @@ async function main() {
   const year = reference.getUTCFullYear();
   const month = reference.getUTCMonth() + 1;
   const period = referenceDate.slice(0, 7);
-  const marker = `[ ${period}]`;
+  // Reconhece rótulos anteriores para não duplicar o dataset ao reexecutar.
+  const labels = (name) => [name, `[DEMO ${period}] ${name}`, `[ ${period}] ${name}`];
   const date = (offset) => new Date(reference.getTime() + offset * 86400000).toISOString();
   const effectiveDay = Math.max(1, reference.getUTCDate() - 1);
   const current = new Date(Date.UTC(year, month - 1, effectiveDay, 12)).toISOString();
@@ -56,14 +56,13 @@ async function main() {
     const categoriesService = app.get(CategoriesService);
     const tagsService = app.get(TagsService);
     const transactions = app.get(TransactionsService);
-    const receipts = app.get(ReceiptsService);
     const budgets = app.get(BudgetsService);
     const goals = app.get(GoalsService);
     const reflection = app.get(ReflectionService);
     const recurrences = app.get(RecurrencesService);
     const reminders = app.get(RemindersService);
     const tagIds = [];
-    for (const nome of ['#demo', '#demo-essencial', '#demo-planejado']) {
+    for (const nome of ['#Pessoal', '#Essencial', '#Planejado']) {
       let item = await prisma.tag.findFirst({ where: { perfilId: profile, nome } });
       if (!item) { item = await tagsService.create(user, profile, nome); count('tags'); }
       tagIds.push(item.id);
@@ -98,24 +97,21 @@ async function main() {
     ];
     const transactionIds = new Map();
     for (const [name, tipo, valor, category, dataHora, status = 'EFETIVADA', subcategory] of records) {
-      const descricao = `${marker} ${name}`;
-      let item = await prisma.transacao.findFirst({ where: { perfilId: profile, descricao, recorrenciaId: null } });
+      const descricao = name;
+      let item = await prisma.transacao.findFirst({ where: { perfilId: profile, descricao: { in: labels(name) }, tipo, valor,
+        dataHora: new Date(dataHora), recorrenciaId: null } });
       if (!item) {
         item = await transactions.create(user, profile, { tipo, valor, dataHora, descricao, status,
           categoriaId: category ? categories.get(category) : null, subcategoriaId: subcategoryIds.get(subcategory),
           metodoPagamento: tipo === 'RECEITA' ? 'TRANSFERENCIA' : 'PIX', ehGastoLivre: category === null,
           essencialidade: tipo === 'DESPESA' ? (['Cinema', 'Compra por impulso'].includes(name) ? 'NAO_ESSENCIAL' : 'ESSENCIAL') : 'NAO_CLASSIFICADA',
-          anotacao: 'Dado fictício para testar a integração. Não representa uma movimentação real.' });
+          anotacao: null });
         count('transactions');
         await transactions.setTags(user, profile, item.id, [tagIds[0], status === 'PREVISTA' ? tagIds[2] : tagIds[1]]);
       }
       transactionIds.set(name, item.id);
     }
-    const receiptTransaction = transactionIds.get('Supermercado');
-    const arquivoUrl = 'https://example.com/recibos/demo-supermercado.pdf';
-    if (!await prisma.anexoTransacao.findFirst({ where: { transacaoId: receiptTransaction, arquivoUrl } })) {
-      await receipts.create(user, profile, receiptTransaction, { arquivoUrl, mimeType: 'application/pdf' }); count('receipts');
-    }
+    // Recibos são adicionados pelo aplicativo com uma imagem real, não por URL de exemplo.
 
     // Só cria planejamento se o período ainda não estiver configurado; não sobrescreve.
     const start = new Date(Date.UTC(year, month - 1, 1));
@@ -137,8 +133,8 @@ async function main() {
       }
     }
     for (const [name, valorAlvo, offset, valor] of [['Viagem', '3000.00', 90, '450.00'], ['Reserva de emergência', '5000.00', 180, '800.00']]) {
-      const nome = `${marker} ${name}`;
-      let item = await prisma.meta.findFirst({ where: { perfilId: profile, nome } });
+      const nome = name;
+      let item = await prisma.meta.findFirst({ where: { perfilId: profile, nome: { in: labels(name) } } });
       if (!item) { item = await goals.create(user, profile, { nome, valorAlvo, dataLimite: date(offset).slice(0, 10), frequenciaSugestao: 'SEMANAL' }); count('goals'); }
       const dataHora = new Date(current);
       if (!await prisma.aporteMeta.findFirst({ where: { metaId: item.id, dataHora, valor } })) {
@@ -146,8 +142,8 @@ async function main() {
       }
     }
     for (const [name, duracaoHoras] of [['Fone de ouvido', 48], ['Tênis novo', 6]]) {
-      const descricao = `${marker} ${name}`;
-      if (!await prisma.itemReflexao.findFirst({ where: { perfilId: profile, descricao } })) {
+      const descricao = name;
+      if (!await prisma.itemReflexao.findFirst({ where: { perfilId: profile, descricao: { in: labels(name) } } })) {
         await reflection.create(user, profile, { descricao, duracaoHoras }); count('reflectionItems');
       }
     }
@@ -158,8 +154,8 @@ async function main() {
       ['Salário mensal', 'RECEITA', '5000.00', 'Rendas e Investimentos', 'MENSAL', nextMonth],
       ['Seguro anual', 'DESPESA', '450.00', 'Transporte', 'ANUAL', date(25)],
     ]) {
-      const descricao = `${marker} ${name}`;
-      let item = await prisma.recorrencia.findFirst({ where: { perfilId: profile, descricao } });
+      const descricao = name;
+      let item = await prisma.recorrencia.findFirst({ where: { perfilId: profile, descricao: { in: labels(name) } } });
       if (!item) {
         item = await recurrences.create(user, profile, { tipoTransacao, valor, descricao, categoriaId: categories.get(category),
           metodoPagamento: 'PIX', frequencia, proximaOcorrencia }); count('recurrences');
@@ -183,7 +179,7 @@ async function main() {
         effective: await prisma.transacao.count({ where: { perfilId: profile, status: 'EFETIVADA' } }),
         scheduled: await prisma.transacao.count({ where: { perfilId: profile, status: 'PREVISTA' } }),
         saldoAtual: dashboard.saldoAtual, gastosDoMes: dashboard.gastosDoMes },
-      authenticationAndCataloguePreserved: true, receiptIsPlaceholderMetadata: true }, null, 2));
+      authenticationAndCataloguePreserved: true }, null, 2));
   } finally { await app.close(); }
 }
 

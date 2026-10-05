@@ -1,9 +1,10 @@
+import { SubcategoryModal } from '@/components/domain/SubcategoryModal';
 import { categoryPresentation } from '@/utils/category-presentation';
 import { CategoryIcon } from '@/components/common/CategoryIcon';
 import { IconChevronDown, IconChevronLeft, IconChevronRight, IconPlus, IconPencil } from '@tabler/icons-react-native';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { createRemoteSubcategory, updateRemoteSubcategory, getTransactionCatalog, type CatalogSubcategory } from '@/services/category.service';
@@ -92,47 +93,11 @@ function CategoriesContent() {
   </SafeAreaView>;
 }
 
-function SubcategoryModal(props: {
-  visible: boolean;
-  editing: boolean;
-  active: boolean;
-  onActiveChange: (value: boolean) => void;
-  error: string;
-  busy: boolean;
-  categoryName?: string;
-  name: string;
-  onNameChange: (value: string) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return <Modal visible={props.visible} transparent animationType="fade"
-    onRequestClose={props.onClose}>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}><View style={styles.modal}>
-      <Text style={styles.modalTitle}>{props.editing ? 'Editar subcategoria' : 'Nova subcategoria'}</Text>
-      <Text style={styles.muted}>{props.categoryName}</Text>
-      <Text style={styles.label}>Nome</Text>
-      <TextInput value={props.name} onChangeText={props.onNameChange} autoFocus editable={!props.busy}
-        placeholder="Ex.: Feira" placeholderTextColor={colors.navInactive} style={styles.input} />
-      {props.editing && <View style={styles.subcategoryRow}><Text style={styles.item}>Subcategoria ativa</Text><AppSwitch disabled={props.busy} value={props.active} onChange={props.onActiveChange} accessibilityLabel="Subcategoria ativa" /></View>}
-      {props.editing && <Text style={styles.muted}>Desativar preserva as transações anteriores.</Text>}
-      {!!props.error && <Text accessibilityRole="alert" style={styles.error}>{props.error}</Text>}
-      <View style={styles.actions}>
-        <Pressable disabled={props.busy} onPress={props.onClose} style={styles.secondaryButton}>
-          <Text style={styles.secondaryText}>Cancelar</Text>
-        </Pressable>
-        <Pressable disabled={props.busy} accessibilityState={{ busy: props.busy, disabled: props.busy }} onPress={props.onSave} style={styles.primaryButton}>
-          <Text style={styles.primaryText}>{props.busy ? 'Salvando…' : 'Salvar'}</Text>
-        </Pressable>
-      </View>
-    </View></KeyboardAvoidingView>
-  </Modal>;
-}
 
 const styles = StyleSheet.create({
   categoryHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   categoryIcon: { width: 38, height: 38, borderRadius: radius.icon, alignItems: 'center', justifyContent: 'center' },
   subcategoryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
-  error: { color: colors.negative, fontFamily: fontFamily.regular, marginTop: spacing.md },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', paddingHorizontal: spacing.md },
@@ -154,19 +119,4 @@ const styles = StyleSheet.create({
   addButton: { minHeight: 44, marginTop: spacing.sm, flexDirection: 'row',
     alignItems: 'center', gap: spacing.xs },
   addText: { fontFamily: fontFamily.bold, fontSize: fontSize.body, color: colors.primary },
-  overlay: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: 'rgba(16,32,46,0.35)' },
-  modal: { borderRadius: radius.sheet, padding: 20, backgroundColor: colors.surface },
-  modalTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.title, color: colors.textPrimary },
-  label: { marginTop: spacing.lg, marginBottom: spacing.xs, fontFamily: fontFamily.medium,
-    fontSize: fontSize.label, color: colors.textPrimary },
-  input: { minHeight: 48, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.input, paddingHorizontal: spacing.lg, fontFamily: fontFamily.regular,
-    fontSize: fontSize.body, color: colors.textPrimary },
-  actions: { marginTop: spacing.lg, flexDirection: 'row', gap: spacing.md },
-  secondaryButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.input },
-  primaryButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center',
-    borderRadius: radius.input, backgroundColor: colors.primary },
-  secondaryText: { fontFamily: fontFamily.bold, fontSize: fontSize.body, color: colors.textSecondary },
-  primaryText: { fontFamily: fontFamily.bold, fontSize: fontSize.body, color: colors.surface },
 });

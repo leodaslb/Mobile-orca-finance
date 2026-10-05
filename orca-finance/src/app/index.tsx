@@ -1,7 +1,8 @@
 import { IconEye, IconX } from '@tabler/icons-react-native';
 import { Redirect } from 'expo-router';
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardLayout } from '@/components/common/KeyboardLayout';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSession } from '@/contexts/AppSessionContext';
@@ -65,7 +66,7 @@ export default function Index() {
     <Text style={styles.footer}>Seus dados financeiros em um só lugar.</Text>
 
     <Modal visible={mode !== null} transparent animationType="slide" onRequestClose={() => { if (!busy) setMode(null); }}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardLayout style={styles.overlay}>
         <Pressable style={styles.dismissArea} onPress={() => { if (!busy) setMode(null); }} />
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
@@ -108,7 +109,7 @@ export default function Index() {
             </View>
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardLayout>
     </Modal>
   </SafeAreaView>;
 }

@@ -41,3 +41,20 @@ example
 # generated native folders
 /ios
 /android
+
+# Documentacao e ferramentas locais
+docs/
+*.md
+!README.md
+.agents/
+.codex/
+.claude/
+skills-lock.json
+.env*
+!.env.example
+
+# Caches e pacotes Android
+.expo-audit/
+.gradle/
+*.apk
+*.aab

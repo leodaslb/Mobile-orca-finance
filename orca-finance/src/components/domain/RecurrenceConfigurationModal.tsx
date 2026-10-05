@@ -1,3 +1,4 @@
+import { FormScrollView } from '@/components/common/KeyboardLayout';
 import {
   IconArrowLeft,
   IconCalendar,
@@ -8,7 +9,6 @@ import { useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -120,7 +120,7 @@ export function RecurrenceConfigurationModal({
           <View style={styles.iconButton} />
         </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>
+        <FormScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>
           {value.description !== undefined && <View style={styles.card}>
             <Text style={styles.cardTitle}>Próximas ocorrências</Text>
             <TextInput accessibilityLabel="Descrição da recorrência" editable={!busy} value={description} onChangeText={setDescription} style={styles.field} />
@@ -231,7 +231,7 @@ export function RecurrenceConfigurationModal({
               </Text>
             </View>
           </View>
-        </ScrollView>
+        </FormScrollView>
 
         {!!error && <Text accessibilityRole="alert" style={[styles.error, { padding: spacing.md }]}>{error}</Text>}
         <Pressable

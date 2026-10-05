@@ -5,6 +5,31 @@
 **/coverage/
 **/*.tsbuildinfo
 
+.AGENTS.md
+
+# Documentacao local; manter somente os READMEs de uso do projeto
+docs/
+*.md
+!README.md
+
+# Ferramentas de agentes e configuracoes locais
+.agents/
+.codex/
+.claude/
+skills-lock.json
+.idea/
+
+# Caches e pacotes gerados
+**/.expo/
+**/.expo-audit/
+**/.gradle/
+**/.kotlin/
+*.apk
+*.aab
+
+# Inclui copias locais de ambiente, preservando o exemplo publico
+.env*
+!.env.example
 # Ambientes locais: manter exemplos, nunca credenciais
 .env
 .env.*
@@ -36,3 +61,6 @@ Thumbs.db
 *.key
 *.mobileprovision
 node_modules/
+.agents
+.codex
+.AGENTS.md

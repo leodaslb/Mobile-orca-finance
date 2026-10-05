@@ -7,3 +7,15 @@ src/generated/prisma/
 !.env.example
 *.tsbuildinfo
 *.log
+AGENTS.md
+
+# Documentacao e ferramentas locais
+docs/
+*.md
+!README.md
+.agents/
+.codex/
+.claude/
+skills-lock.json
+.env*
+!.env.example

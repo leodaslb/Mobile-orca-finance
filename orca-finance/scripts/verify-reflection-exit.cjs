@@ -31,6 +31,9 @@ function ui(extra = {}) {
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
     '@tabler/icons-react-native': new Proxy({}, { get: (_, name) => name }),
     '@/components/common/CategoryIcon': { CategoryIcon: 'CategoryIcon' },
+    '@/components/common/DateTimeField': { DateTimeField: 'DateTimeField' },
+    '@/components/common/KeyboardLayout': { FormScrollView: 'FormScrollView' },
+    '@/components/domain/CreateSubcategoryModal': { CreateSubcategoryModal: 'CreateSubcategoryModal' },
     '@/components/common/AppSwitch': { AppSwitch: 'AppSwitch' },
     '@/components/domain/ReceiptPicker': { ReceiptPicker: 'ReceiptPicker' },
     '@/components/domain/PurchaseReflectionModal': { PurchaseReflectionModal: 'PurchaseReflectionModal' },
@@ -76,7 +79,9 @@ const field = (tree, placeholder) => nodes(tree).find(node => node.type === 'Tex
   assert.equal(button(tree, 'Receita').props.disabled, true);
   button(tree, 'Salvar transação').props.onPress(); assert.equal(submitted.length, 0);
   tree = formUi.render();
-  field(tree, 'R$ 0,00').props.onChangeText('25,50'); field(tree, 'dd/mm/aaaa').props.onChangeText('03102026'); field(tree, 'hh:mm').props.onChangeText('1200');
+  field(tree, 'R$ 0,00').props.onChangeText('25,50');
+  nodes(tree).find(node => node.type === 'DateTimeField' && node.props.mode === 'date').props.onChange('03/10/2026');
+  nodes(tree).find(node => node.type === 'DateTimeField' && node.props.mode === 'time').props.onChange('12:00');
   tree = formUi.render(); button(tree, 'Selecione a categoria').props.onPress(); tree = formUi.render();
   button(tree, 'Lazer e Estilo de Vida').props.onPress(); tree = formUi.render();
   button(tree, 'Salvar transação').props.onPress(); assert.equal(submitted.length, 1);

@@ -19,7 +19,8 @@
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate",
     "seed": "npm run prisma:generate && npm run build && node prisma/seed.cjs",
-    "seed:demo": "npm run prisma:generate && npm run build && node prisma/seed-demo.cjs"
+    "seed:demo": "npm run seed:apresentacao --",
+    "seed:apresentacao": "npm run prisma:generate && npm run build && node prisma/seed-demo.cjs"
   },
   "dependencies": {
     "@fastify/multipart": "10.1.2",

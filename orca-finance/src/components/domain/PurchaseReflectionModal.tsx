@@ -1,3 +1,4 @@
+import { FormScrollView } from '@/components/common/KeyboardLayout';
 
 import { CategoryIcon } from '@/components/common/CategoryIcon';
 import { IconArrowLeft, IconInfoCircle, IconPlayerPause } from '@tabler/icons-react-native';
@@ -7,7 +8,6 @@ import {
 import {
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -63,7 +63,7 @@ export function PurchaseReflectionModal({
           <View style={styles.iconButton} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
+        <FormScrollView contentContainerStyle={styles.content}>
           <View style={styles.reflectionCard}>
             <View style={styles.pauseCircle}>
               <IconPlayerPause size={44} color={colors.warning} strokeWidth={1.8} />
@@ -139,7 +139,7 @@ export function PurchaseReflectionModal({
           >
             <Text style={styles.reviewText}>Voltar e revisar</Text>
           </Pressable>
-        </ScrollView>
+        </FormScrollView>
       </SafeAreaView>
     </Modal>
   );

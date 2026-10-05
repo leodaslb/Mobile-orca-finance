@@ -5,8 +5,10 @@
   "dependencies": {
     "@expo-google-fonts/manrope": "^0.4.2",
     "@expo/ui": "~57.0.19",
+    "@react-native-community/datetimepicker": "9.1.0",
     "@tabler/icons-react-native": "^3.47.0",
     "expo": "~57.0.24",
+    "expo-build-properties": "~57.0.22",
     "expo-constants": "~57.0.19",
     "expo-crypto": "~57.0.3",
     "expo-device": "~57.0.2",
@@ -47,7 +49,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "check": "tsc --noEmit",
-    "test": "node scripts/verify-api.cjs && node scripts/verify-integration2.cjs && node scripts/verify-closing.cjs && node scripts/verify-profile-hooks.cjs && node scripts/verify-transactions.cjs && node scripts/verify-security.cjs && node scripts/verify-stage7.cjs && node scripts/verify-planning.cjs && node scripts/verify-goals.cjs && node scripts/verify-reports.cjs && node scripts/verify-mobile-final.cjs && node scripts/verify-reflection-exit.cjs",
+    "test": "node scripts/verify-api.cjs && node scripts/verify-integration2.cjs && node scripts/verify-closing.cjs && node scripts/verify-profile-hooks.cjs && node scripts/verify-transactions.cjs && node scripts/verify-security.cjs && node scripts/verify-stage7.cjs && node scripts/verify-planning.cjs && node scripts/verify-goals.cjs && node scripts/verify-reports.cjs && node scripts/verify-mobile-final.cjs && node scripts/verify-reflection-exit.cjs && node scripts/verify-transaction-ux.cjs",
     "test:api:neon": "node scripts/verify-api-neon.cjs",
     "test:integration2:neon": "node scripts/verify-integration2-neon.cjs"
   },
