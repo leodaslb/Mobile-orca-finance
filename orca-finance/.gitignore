@@ -45,7 +45,6 @@ example
 # Documentacao e ferramentas locais
 docs/
 *.md
-!README.md
 .agents/
 .codex/
 .claude/

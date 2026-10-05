@@ -12,7 +12,6 @@ AGENTS.md
 # Documentacao e ferramentas locais
 docs/
 *.md
-!README.md
 .agents/
 .codex/
 .claude/

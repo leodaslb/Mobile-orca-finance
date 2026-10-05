@@ -7,10 +7,10 @@
 
 .AGENTS.md
 
-# Documentacao local; manter somente os READMEs de uso do projeto
+# Documentacao local; manter somente o README da raiz
 docs/
 *.md
-!README.md
+!/README.md
 
 # Ferramentas de agentes e configuracoes locais
 .agents/
