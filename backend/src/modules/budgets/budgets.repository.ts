@@ -61,7 +61,7 @@ export class BudgetsRepository {
 
   linkedTransactions(perfilId: string, orcamentoId: string) {
     return this.prisma.transacao.findMany({ where: { perfilId, transacaoOrcamentos: { some: { orcamentoId, orcamento: { perfilId } } } },
-      select: { id: true, categoriaId: true, tipo: true, valor: true, dataHora: true, status: true },
+      select: { id: true, descricao: true, categoriaId: true, tipo: true, valor: true, dataHora: true, status: true },
       orderBy: [{ dataHora: 'asc' }, { id: 'asc' }] });
   }
 

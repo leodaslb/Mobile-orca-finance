@@ -6,7 +6,7 @@ import { Action, Badge, Choices, EmptyState, Field, FinanceScreen, money, ui } f
 import { useAppSession } from '@/contexts/AppSessionContext';
 import { AsyncState } from '@/components/common/AsyncState';
 import { useProfileResource } from '@/hooks/useProfileResource';
-import { getAudits } from '@/services/audit.service';
+import { getAudits, type AuditEvent } from '@/services/audit.service';
 import { getTransactionCatalog } from '@/services/category.service';
 import { colors } from '@/theme';
 const labels: Record<string, string> = { descricao: 'Descrição', valor: 'Valor', tipo: 'Tipo', dataHora: 'Data', categoriaId: 'Categoria', subcategoriaId: 'Subcategoria', essencialidade: 'Essencialidade', status: 'Estado', anotacao: 'Anotação', metodoPagamento: 'Pagamento', ehGastoLivre: 'Gasto livre', tags: 'Tags' };
@@ -24,15 +24,14 @@ function value(key: string, v: unknown, catalog?: Awaited<ReturnType<typeof getT
 export default function AuditHistoryRoute() { const { activeProfileId } = useAppSession(); const { transactionId } = useLocalSearchParams<{ transactionId?: string }>(); return <AuditHistory key={`${activeProfileId}:${transactionId}`} />; }
 function AuditHistory() {
   const { transactionId } = useLocalSearchParams<{ transactionId?: string }>(); const [expanded, setExpanded] = useState<string | null>(null);
-  const [selected, setSelected] = useState(transactionId ?? '');
+  const [operation, setOperation] = useState<AuditEvent['operacao'] | ''>('');
   const [query, setQuery] = useState('');
-  const resource = useProfileResource(useCallback(async () => ({ audits: await getAudits(transactionId), catalog: await getTransactionCatalog() }), [transactionId]));
-  const originalId = (e: NonNullable<typeof resource.data>['audits'][number]) => String(e.transacaoId ?? e.estadoAnterior?.id ?? e.estadoNovo?.id ?? '');
-  const options = new Map((resource.data?.audits ?? []).map(e => [originalId(e), String(e.estadoNovo?.descricao ?? e.estadoAnterior?.descricao ?? 'Transação')]));
-  const visible = resource.data?.audits.filter(e => (!selected || originalId(e) === selected) && (!query.trim() || String(e.estadoNovo?.descricao ?? e.estadoAnterior?.descricao ?? '').toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))));
+  const resource = useProfileResource(useCallback(async () => ({ audits: await getAudits(transactionId, operation || undefined), catalog: await getTransactionCatalog() }), [transactionId, operation]));
+  const visible = resource.data?.audits.filter(e => !query.trim() || String(e.estadoNovo?.descricao ?? e.estadoAnterior?.descricao ?? '').toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR')));
   return <FinanceScreen title="Histórico de alterações" subtitle={transactionId ? 'Eventos desta transação, inclusive após reversão.' : 'Criações, edições e reversões do perfil.'} refresh={resource.reload} refreshing={resource.refreshing}>
     {(resource.loading || resource.error) && <AsyncState loading={resource.loading} error={resource.error} onRetry={resource.reload} />}
-    {!transactionId && !!resource.data?.audits.length && <><Field label="Buscar transação no histórico" value={query} onChange={setQuery} /><Choices label="Filtrar transação" value={selected} onChange={v => { setSelected(v); setExpanded(null); }} options={[{ value: '', label: 'Todas' }, ...[...options].filter(([id, label]) => id && (!query.trim() || label.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR')))).map(([value, label]) => ({ value, label }))]} /></>}
+    <Choices label="Tipo de alteração" value={operation} onChange={v => { setOperation(v); setExpanded(null); }} options={[{ value: '', label: 'Todas' }, { value: 'CRIACAO', label: 'Inclusão' }, { value: 'EDICAO', label: 'Edição' }, { value: 'EXCLUSAO', label: 'Exclusão' }]} />
+    <Field label="Buscar transação no histórico" value={query} onChange={v => { setQuery(v); setExpanded(null); }} />
     {visible?.length === 0 && <EmptyState title="Nenhum evento encontrado." description="As alterações dos seus lançamentos aparecerão aqui." />}
     {visible?.map(e => <AppCard key={e.id} style={ui.card}><Badge label={({ CRIACAO: 'Criação', EDICAO: 'Edição', EXCLUSAO: 'Exclusão por reversão' })[e.operacao]} tone={e.operacao === 'EXCLUSAO' ? 'negative' : e.operacao === 'CRIACAO' ? 'positive' : 'neutral'} /><Text style={ui.caption}>{new Date(e.realizadoEm).toLocaleString('pt-BR')}</Text><Text style={ui.heading}>{String(e.estadoNovo?.descricao ?? e.estadoAnterior?.descricao ?? 'Transação')}</Text>
       <Action secondary label={expanded === e.id ? 'Recolher' : 'Ver alterações'} onPress={() => setExpanded(v => v === e.id ? null : e.id)} />

@@ -170,15 +170,27 @@ function harness({ data, params = {}, services = {}, canGoBack = false }) {
   console.log('PASS: US32 linha temporal agrupa por dia, identifica origem prevista e distingue saldo atual/fim do mês/próximos 30 dias.');
 
   const calculationCalls = [];
-  const calculations = harness({ data: { categories: [] }, services: { '@/services/planning-tools.service': { calculate: async (...input) => { calculationCalls.push(input); return { valorFuturo: '90.00', jurosAcumulados: '-10.00' }; } } } });
+  let calculationResponse;
+  const calculations = harness({ data: { categories: [] }, services: { '@/services/planning-tools.service': { calculate: async (...input) => { calculationCalls.push(input); return calculationResponse ?? (input[0] === 'compound-interest' ? { valorFuturo: '90.00', jurosAcumulados: '-10.00' } : { valorFuturoHipotetico: '100.00', ganhoHipotetico: '0.00' }); } } } });
   tree = calculations.mount('src/app/planejamento/simuladores.tsx');
   find(tree, 'Choices', 'Simulação').props.onChange('compound-interest'); tree = calculations.render();
-  find(tree, 'Field', 'Valor (R$)').props.onChange('100,00'); find(tree, 'Field', 'Taxa percentual por período').props.onChange('-10'); tree = calculations.render();
+  find(tree, 'Field', 'Capital inicial (R$)').props.onChange('100,00'); find(tree, 'Field', 'Taxa de juros por período (%)').props.onChange('-10'); tree = calculations.render();
   await find(tree, 'Action', 'Simular').props.onPress(); tree = calculations.render();
-  assert.deepEqual(calculationCalls[0], ['compound-interest', '100.00', -10, 1]); assert.ok(text(tree).includes('Ganho ou perda: -10.00'));
-  find(tree, 'Choices', 'Simulação').props.onChange('opportunity-cost'); tree = calculations.render(); assert.ok(!text(tree).includes('Valor futuro hipotético'));
-  find(tree, 'Field', 'Taxa percentual por período').props.onChange('-100'); find(tree, 'Field', 'Quantidade de períodos').props.onChange('0'); tree = calculations.render();
-  await find(tree, 'Action', 'Simular').props.onPress(); assert.deepEqual(calculationCalls[1], ['opportunity-cost', '100.00', -100, 0]);
+  assert.deepEqual(calculationCalls[0], ['compound-interest', '100.00', -10, 1]); assert.ok(text(tree).includes('Rendimento acumulado')); assert.ok(text(tree).includes('-10.00')); assert.ok(text(tree).includes('Perda simulada')); assert.ok(text(tree).includes('Saldo final simulado'));
+  find(tree, 'Choices', 'Simulação').props.onChange('opportunity-cost'); tree = calculations.render(); assert.ok(!text(tree).includes('Saldo final simulado'));
+  assert.equal(find(tree, 'Field', 'Gasto que deseja comparar (R$)').props.value, '100,00');
+  find(tree, 'Field', 'Retorno hipotético por período (%)').props.onChange('-100'); find(tree, 'Field', 'Quantidade de períodos').props.onChange('0'); tree = calculations.render();
+  await find(tree, 'Action', 'Simular').props.onPress(); tree = calculations.render(); assert.deepEqual(calculationCalls[1], ['opportunity-cost', '100.00', -100, 0]);
+  assert.ok(text(tree).includes('Se o valor fosse investido')); assert.ok(text(tree).includes('Diferença em relação ao gasto hoje')); assert.ok(text(tree).includes('Sem variação')); assert.ok(!text(tree).includes('Rendimento acumulado'));
+  calculationResponse = { valorGastoHipotetico: '1000.00', valorFuturoHipotetico: '1126.83', ganhoHipotetico: '126.83' };
+  find(tree, 'Field', 'Gasto que deseja comparar (R$)').props.onChange('1000,00'); find(tree, 'Field', 'Retorno hipotético por período (%)').props.onChange('1'); find(tree, 'Field', 'Quantidade de períodos').props.onChange('12'); tree = calculations.render();
+  await find(tree, 'Action', 'Simular').props.onPress(); tree = calculations.render();
+  assert.ok(text(tree).includes('+126.83')); assert.ok(text(tree).includes('1126.83')); assert.ok(text(tree).includes('1000.00'));
+  assert.ok(text(tree).includes('Ao investir em vez de gastar agora')); assert.ok(text(tree).includes('Ganho simulado'));
+  find(tree, 'Choices', 'Simulação').props.onChange('compound-interest'); tree = calculations.render();
+  calculationResponse = { valorInicial: '1000.00', valorFuturo: '1126.83', jurosAcumulados: '126.83' };
+  await find(tree, 'Action', 'Simular').props.onPress(); tree = calculations.render();
+  assert.ok(text(tree).includes('Seu capital renderia 126.83 além do valor inicial.')); assert.ok(text(tree).includes('Do capital inicial ao saldo final'));
   console.log('PASS: US31 alterna cálculo isolado, aceita perda/zero períodos e invalida resultado ao editar parâmetros.');
 
   const planWrites = [], plan = { id: 'plan', nome: 'Computador', valorTotal: '1000.00', valorMensalPlanejado: '100.00', quantidadeMesesEstimada: 10, dataInicio: '2026-11-01' };
@@ -213,12 +225,22 @@ function harness({ data, params = {}, services = {}, canGoBack = false }) {
   assert.deepEqual(ruleWrites.at(-1).body.canais, ['PUSH']);
   console.log('PASS: US52 mostra avaliação monetária remota, zero não vira percentual fictício e percentual acima de 100 não é bloqueado.');
 
-  const challengeState = { challenges: [{ id: 'active', nome: 'Desafio', categoriaNome: 'Alimentação', dataInicio: '2026-11-01', dataFim: '2026-11-30', status: 'EM_ANDAMENTO', valorMeta: '1000.00', valorGastoAtual: '0.00' }], proposals: { baseline: { startDate: '2026-10-01', endDate: '2026-10-31' }, challengePeriod: { startDate: '2026-11-01', endDate: '2026-11-30' }, candidates: [candidate] } };
-  const activeChallenges = harness({ data: challengeState, services: { '@/services/challenge.service': { acceptChallenge: async () => { throw new Error('Não deve aceitar outro desafio'); } } } });
+  const challengeState = { challenges: [{ id: 'active', nome: 'Desafio', categoriaId: 'cat', categoriaNome: 'Alimentação', dataInicio: '2026-11-01', dataFim: '2026-11-30', status: 'EM_ANDAMENTO', valorMeta: '1000.00', valorGastoAtual: '0.00' }], proposals: { baseline: { startDate: '2026-10-01', endDate: '2026-10-31' }, challengePeriod: { startDate: '2026-11-01', endDate: '2026-11-30' }, candidates: [candidate] } };
+  const categoryAccepts = [];
+  const activeChallenges = harness({ data: challengeState, services: { '@/services/challenge.service': { acceptChallenge: async id => { categoryAccepts.push(id); return { id: 'another' }; } } } });
   tree = activeChallenges.mount('src/app/planejamento/desafios.tsx'); assert.ok(text(tree).includes('ativo ou reservado'));
   find(tree, 'Action', 'Revisar proposta').props.onPress(); tree = activeChallenges.render();
   assert.equal(find(tree, 'Action', 'Aceitar desafio').props.disabled, true); await find(tree, 'Action', 'Aceitar desafio').props.onPress();
+  assert.deepEqual(categoryAccepts, []);
   find(tree, 'Action', 'Cancelar revisão').props.onPress(); tree = activeChallenges.render(); assert.ok(!nodes(tree).some(n => n.props.label === 'Aceitar desafio'));
+  challengeState.proposals.candidates = [{ ...candidate, categoriaId: 'health', categoriaNome: 'Saúde' }];
+  tree = activeChallenges.render(); find(tree, 'Action', 'Revisar proposta').props.onPress(); tree = activeChallenges.render();
+  assert.equal(find(tree, 'Action', 'Aceitar desafio').props.disabled, false);
+  await find(tree, 'Action', 'Aceitar desafio').props.onPress(); assert.deepEqual(categoryAccepts, ['health']);
+  challengeState.proposals.candidates = [candidate]; challengeState.challenges[0].status = 'CONCLUIDO';
+  tree = activeChallenges.render(); find(tree, 'Action', 'Revisar proposta').props.onPress(); tree = activeChallenges.render();
+  assert.equal(find(tree, 'Action', 'Aceitar desafio').props.disabled, false);
+  challengeState.challenges[0].status = 'EM_ANDAMENTO';
   const renames = [];
   const detail = harness({ params: { id: 'active' }, data: index => index === 0 ? { ...challengeState.challenges[0], valorReferencia: '1200.00', valorGastoAtual: '1100.00', valorDisponivelAteMeta: '-100.00', percentualPeriodoConsumido: 110, percentualReducao: 16.6667 } : { suggestions: [{ type: 'WEEKLY_TARGET', valorSemanalAproximado: '250.00' }] },
     services: { '@/services/challenge.service': { renameChallenge: async (id, nome) => { renames.push({ id, nome }); return {}; } } } });
@@ -226,7 +248,7 @@ function harness({ data, params = {}, services = {}, canGoBack = false }) {
   find(tree, 'Field', 'Novo nome do desafio').props.onChange(' Novo nome '); tree = detail.render();
   await find(tree, 'Action', 'Renomear').props.onPress(); assert.deepEqual(renames[0], { id: 'active', nome: 'Novo nome' });
   detail.reloads.length = 0; nodes(tree).find(n => n.type === 'FinanceScreen').props.refresh(); assert.deepEqual(detail.reloads, [0, 1]);
-  console.log('PASS: US59 ativo reservado impede novo aceite na UI; detalhe preserva excesso, sugestões aproximadas, PATCH de nome e refresh das duas seções.');
+  console.log('PASS: US59 bloqueia mesma categoria ativa/reservada, permite outra categoria e categoria encerrada; detalhe preserva excesso, sugestões, PATCH e refresh.');
   let picks = 0;
   const uncertainImport = harness({ services: { '@/services/import.service': { pickImport: async () => { picks++; return { name: 'test.csv', preview }; }, confirmImport: async () => { throw Object.assign(new Error('Indisponível'), { status: 503 }); } } } });
   tree = uncertainImport.mount('src/app/transacao/importar.tsx'); await find(tree, 'Action', 'Selecionar arquivo').props.onPress(); tree = uncertainImport.render();
@@ -268,6 +290,21 @@ function harness({ data, params = {}, services = {}, canGoBack = false }) {
   assert.ok(text(tree).includes('Compra antiga')); assert.ok(!text(tree).includes('Salário'));
   find(tree, 'Action', 'Ver alterações').props.onPress(); tree = history.render(); assert.ok(text(tree).includes('Antes: 20.00'));
   find(tree, 'Field', 'Buscar transação no histórico').props.onChange('Inexistente'); tree = history.render(); assert.ok(text(tree).includes('Nenhum evento encontrado.'));
+  assert.deepEqual(find(tree, 'Choices', 'Tipo de alteração').props.options, [{ value: '', label: 'Todas' }, { value: 'CRIACAO', label: 'Inclusão' }, { value: 'EDICAO', label: 'Edição' }, { value: 'EXCLUSAO', label: 'Exclusão' }]);
+  assert.ok(!nodes(tree).some(n => n.type === 'Choices' && n.props.label === 'Filtrar transação'));
+  const auditCalls = [];
+  const filteredHistory = harness({ params: { transactionId: 'deleted' }, data: { audits: [], catalog: auditData.catalog }, services: {
+    '@/services/audit.service': { getAudits: async (...args) => { auditCalls.push(args); return []; } },
+    '@/services/category.service': { getTransactionCatalog: async () => auditData.catalog },
+  } });
+  tree = filteredHistory.mount('src/app/transacao/historico.tsx');
+  for (const operation of ['CRIACAO', 'EDICAO', 'EXCLUSAO', '']) {
+    find(tree, 'Choices', 'Tipo de alteração').props.onChange(operation); tree = filteredHistory.render();
+    await filteredHistory.loadResource(0);
+    assert.deepEqual(auditCalls.at(-1), ['deleted', operation || undefined]);
+    assert.equal(find(tree, 'Choices', 'Tipo de alteração').props.value, operation);
+    assert.ok(text(tree).includes('Nenhum evento encontrado.'));
+  }
   console.log('PASS: US04 busca no histórico mantém snapshot de transação excluída, antes/depois e estado vazio.');
 
   const activations = [], dialogs = [], detailRow = { id: 'budget', nome: 'Viagem', tipo: 'EVENTO', ativo: true, dataInicio: '2026-10-01', dataFim: '2026-10-31', categorias: [], transacoesVinculadas: [], resumo: { valorRealizado: '100.00', valorPlanejado: '200.00', percentualConsumido: 50, estado: 'NORMAL' } };
@@ -281,6 +318,11 @@ function harness({ data, params = {}, services = {}, canGoBack = false }) {
   detailRow.ativo = false; tree = budgetDetail.render(); find(tree, 'Action', 'Ativar orçamento').props.onPress(); assert.deepEqual(activations[1], { id: 'budget', active: true });
   find(tree, 'Action', 'Vincular transação').props.onPress(); tree = budgetDetail.render(); assert.equal(nodes(tree).find(n => n.type === 'Modal').props.visible, true);
   assert.ok(text(tree).includes('Nenhuma despesa disponível'));
+  detailRow.transacoesVinculadas = [
+    { id: 'linked', descricao: 'Cinema em família', valor: '95.00', status: 'EFETIVADA', dataHora: '2026-10-07T12:00:00Z' },
+    { id: 'legacy', valor: '10.00', status: 'EFETIVADA', dataHora: '2026-10-08T12:00:00Z' },
+  ];
+  tree = budgetDetail.render(); assert.ok(text(tree).includes('Cinema em família')); assert.ok(text(tree).includes('95.00')); assert.ok(text(tree).includes('07/10/2026')); assert.ok(text(tree).includes('Descrição indisponível'));
   console.log('PASS: US07 confirma desativação, reativa sem editar finanças e abre painel com estado vazio para vínculos.');
   let focused = false; const selected = [], entryNavigation = [];
   const entrySession = { account: { name: 'Ana' }, activeProfileId: null, profiles: [{ id: 'personal', nome: 'Meu perfil', moedaBase: 'BRL' }],

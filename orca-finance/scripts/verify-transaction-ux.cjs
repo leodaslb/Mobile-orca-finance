@@ -74,6 +74,46 @@ const nativeDate = (year, month, day, hour = 12, minute = 0) => new Date(year, m
   assert.equal(saved[0].subcategoryId,'subcategory'); assert.equal(saved[0].amountCents,initial.amountCents);
   assert.equal(saved[0].notes,initial.notes); assert.deepEqual(saved[0].tags,initial.tags);
   console.log('PASS: criação contextual preserva formulário, cancelar não altera, atualiza opções/seleção e envia data/hora/subcategoria corretas.');
+  const autoUi = harness({ '@/components/common/DateTimeField': { DateTimeField: 'DateTimeField' }, '@/components/common/KeyboardLayout': { FormScrollView: 'FormScrollView' }, '@/components/domain/CreateSubcategoryModal': { CreateSubcategoryModal: 'CreateSubcategoryModal' } });
+  const AutoForm = autoUi.load('src/components/domain/TransactionForm.tsx').TransactionForm;
+  const autoWrites = [];
+  const rules = [
+    { id: 'inactive', categoriaId: 'category', subcategoriaId: null, atributoAlvo: 'essencialidade', valorDestino: 'NAO_ESSENCIAL', ativa: false },
+    { id: 'cat', categoriaId: 'category', subcategoriaId: null, atributoAlvo: 'essencialidade', valorDestino: 'ESSENCIAL', ativa: true },
+    { id: 'sub', categoriaId: null, subcategoriaId: 'energy', atributoAlvo: 'essencialidade', valorDestino: 'NAO_ESSENCIAL', ativa: true },
+  ];
+  let autoProps = { ...formProps, categories: [...categories, { id: 'other', name: 'Transporte', active: true }], subcategories: [{ id: 'energy', categoryId: 'category', name: 'Energia', active: true }], automations: rules, onSubmit: value => autoWrites.push(value) };
+  const checked = (tree, label) => nodes(tree).find(n => n.props.accessibilityLabel === label).props.accessibilityState.checked;
+  tree = autoUi.mount(() => AutoForm(autoProps));
+  assert.equal(checked(tree, 'Compra essencial'), true); assert.ok(text(tree).includes('definido por automação (categoria)'));
+  button(tree, 'Salvar transação').props.onPress(); assert.equal(autoWrites.at(-1).essentiality, null);
+  button(tree, 'Selecione a subcategoria').props.onPress(); tree = autoUi.render(); button(tree, 'Energia').props.onPress(); tree = autoUi.render();
+  assert.equal(checked(tree, 'Compra não essencial'), true); assert.ok(text(tree).includes('definido por automação (subcategoria)'));
+  button(tree, 'Salvar transação').props.onPress(); tree = autoUi.render();
+  const reflection = nodes(tree).find(n => n.type === 'PurchaseReflectionModal'); assert.equal(reflection.props.visible, true);
+  reflection.props.onFinalize(); assert.equal(autoWrites.at(-1).essentiality, null); tree = autoUi.render();
+  button(tree, 'Moradia').props.onPress(); tree = autoUi.render(); button(tree, 'Transporte').props.onPress(); tree = autoUi.render();
+  assert.equal(checked(tree, 'Compra essencial'), false); assert.equal(checked(tree, 'Compra não essencial'), false);
+  nodes(tree).find(n => n.props.accessibilityLabel === 'Compra essencial').props.onPress(); tree = autoUi.render();
+  button(tree, 'Transporte').props.onPress(); tree = autoUi.render(); button(tree, 'Moradia').props.onPress(); tree = autoUi.render();
+  button(tree, 'Selecione a subcategoria').props.onPress(); tree = autoUi.render(); button(tree, 'Energia').props.onPress(); tree = autoUi.render();
+  assert.equal(checked(tree, 'Compra essencial'), true);
+  autoProps = { ...autoProps, automations: [] }; tree = autoUi.render();
+  assert.equal(checked(tree, 'Compra essencial'), true); assert.ok(!text(tree).includes('definido por automação'));
+  button(tree, 'Salvar transação').props.onPress(); assert.equal(autoWrites.at(-1).essentiality, 'essential');
+  const previewUi = harness({ '@/components/common/DateTimeField': { DateTimeField: 'DateTimeField' }, '@/components/common/KeyboardLayout': { FormScrollView: 'FormScrollView' }, '@/components/domain/CreateSubcategoryModal': { CreateSubcategoryModal: 'CreateSubcategoryModal' } });
+  const Preview = previewUi.load('src/components/domain/TransactionForm.tsx').TransactionForm;
+  let previewProps = { ...formProps, automations: rules };
+  tree = previewUi.mount(() => Preview(previewProps)); assert.equal(checked(tree, 'Compra essencial'), true);
+  previewProps = { ...previewProps, automations: [] }; tree = previewUi.render();
+  assert.equal(checked(tree, 'Compra essencial'), false); assert.equal(checked(tree, 'Compra não essencial'), false);
+  previewProps = { ...previewProps, automations: [{ ...rules[1], valorDestino: 'NAO_CLASSIFICADA' }] }; tree = previewUi.render();
+  assert.ok(text(tree).includes('Não classificada · definido por automação')); assert.equal(checked(tree, 'Compra não essencial'), false);
+  const storedUi = harness({ '@/components/common/DateTimeField': { DateTimeField: 'DateTimeField' }, '@/components/common/KeyboardLayout': { FormScrollView: 'FormScrollView' }, '@/components/domain/CreateSubcategoryModal': { CreateSubcategoryModal: 'CreateSubcategoryModal' } });
+  const Stored = storedUi.load('src/components/domain/TransactionForm.tsx').TransactionForm;
+  tree = storedUi.mount(() => Stored({ ...formProps, editing: true, initialValues: { ...initial, essentiality: 'unclassified' }, automations: rules }));
+  assert.equal(checked(tree, 'Compra essencial'), false); assert.ok(!text(tree).includes('definido por automação'));
+  console.log('PASS: automação antecipa essencialidade, prioriza subcategoria, preserva escolha manual/edição, limpa regra ausente e mantém backend/reflexão.');
   const emptyUi=harness({ '@/components/common/DateTimeField':{ DateTimeField:'DateTimeField' }, '@/components/common/KeyboardLayout':{ FormScrollView:'FormScrollView' }, '@/components/domain/CreateSubcategoryModal':{ CreateSubcategoryModal:'CreateSubcategoryModal' } });
   const Empty=emptyUi.load('src/components/domain/TransactionForm.tsx').TransactionForm;
   assert.ok(!text(emptyUi.mount(()=>Empty({categories,subcategories:[]}))).includes('Nova subcategoria'));

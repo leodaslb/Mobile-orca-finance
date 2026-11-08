@@ -72,13 +72,13 @@ describe('US59: candidatos, aceite transacional e PATCH de nome', () => {
   });
   it('criação recalcula referência/meta, reserva um ativo no aceite e usa a mesma transação', async () => {
     await service.create('u', 'p', { categoriaId: 'cat' });
-    expect(data.lockProfile).toHaveBeenCalledWith('p', tx); expect(data.active).toHaveBeenCalledWith('p', new Date('2026-10-15Z'), tx);
+    expect(data.lockProfile).toHaveBeenCalledWith('p', tx); expect(data.active).toHaveBeenCalledWith('p', 'cat', new Date('2026-10-15Z'), tx);
     expect(budgets.spentByCategory).toHaveBeenCalledWith('p', { start: new Date('2026-10-01Z'), end: new Date('2026-11-01Z') }, tx);
     const value = data.create.mock.calls[0][1]; expect(value.valorReferencia.toFixed(2)).toBe('1400.00'); expect(value.valorMetaPeriodo.toFixed(2)).toBe('1120.00');
     expect(value).toMatchObject({ valorAlvo: null, dataInicio: new Date('2026-11-01Z'), dataFim: new Date('2026-11-30Z') });
     expect(data.create.mock.calls[0][2]).toBe(tx);
   });
-  it('outro ativo retorna 409 e ausência de excesso suficiente retorna 400, sem criar', async () => {
+  it('outro ativo na mesma categoria retorna 409 e ausência de excesso suficiente retorna 400, sem criar', async () => {
     data.active.mockResolvedValue({ id: 'other' }); await expect(service.create('u', 'p', { categoriaId: 'cat' })).rejects.toBeInstanceOf(ConflictException);
     data.active.mockResolvedValue(null); budgets.spentByCategory.mockResolvedValue([{ categoriaId: 'cat', _sum: { valor: D(1049) } }]);
     await expect(service.create('u', 'p', { categoriaId: 'cat' })).rejects.toBeInstanceOf(BadRequestException); expect(data.create).not.toHaveBeenCalled();

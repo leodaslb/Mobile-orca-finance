@@ -118,8 +118,14 @@ async function main() {
       assert.equal((await audits.getAudits(result.transactionIds[0]))[0].operacao, 'CRIACAO');
       await assert.rejects(imports.confirmImport(picked.preview, false), error => error.status === 409);
       assert.equal(await db.transacao.count({ where: { perfilId: a.activeProfileId } }), before + 1);
+      await client.apiRequest(client.profilePath(`transactions/${expense.id}`), { method: 'PATCH', body: { descricao: 'Despesa essencial revisada' } });
       await client.apiRequest(client.profilePath(`transactions/${expense.id}`), { method: 'DELETE' });
       const history = await audits.getAudits(expense.id); assert.ok(history.some(event => event.operacao === 'EXCLUSAO' && event.transacaoId === null));
+      for (const operation of ['CRIACAO', 'EDICAO', 'EXCLUSAO']) {
+        const filtered = await audits.getAudits(expense.id, operation);
+        assert.ok(filtered.length > 0, 'Fixture deve conter cada operação');
+        assert.ok(filtered.every(event => event.operacao === operation));
+      }
     });
     await check('US18/21: outro perfil vazio e outra conta rejeitada pelos serviços reais', async () => {
       const other = await client.apiRequest('/profiles', { method: 'POST', body: { nome: 'Outro perfil audit' } }); activate(a, other.id);

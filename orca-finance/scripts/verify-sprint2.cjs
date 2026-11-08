@@ -39,6 +39,13 @@ function last(path, method) { assert.equal(new URL(calls.at(-1).url).pathname, p
  await check('US04: auditoria de exclusão preserva snapshot e filtro por transação original', async () => {
    const audits = load('src/services/audit.service.ts'); response = [{ id: 'audit', transacaoId: null, operacao: 'EXCLUSAO', estadoAnterior: { id: 'deleted', descricao: 'Compra antiga', valor: '1.05' }, estadoNovo: null }];
    const result = await audits.getAudits('deleted'); last('/profiles/profile-a/transaction-audits', 'GET'); assert.match(calls.at(-1).url, /transactionId=deleted/); assert.equal(result[0].estadoAnterior.descricao, 'Compra antiga'); assert.equal(result[0].transacaoId, null);
+   for (const operation of ['CRIACAO', 'EDICAO', 'EXCLUSAO']) {
+     await audits.getAudits(undefined, operation);
+     assert.deepEqual(Object.fromEntries(new URL(calls.at(-1).url).searchParams), { operation });
+   }
+   await audits.getAudits('deleted', 'EXCLUSAO');
+   assert.deepEqual(Object.fromEntries(new URL(calls.at(-1).url).searchParams), { transactionId: 'deleted', operation: 'EXCLUSAO' });
+   await audits.getAudits(); assert.equal(new URL(calls.at(-1).url).search, '');
  });
  await check('US07/09: CRUD, PATCH sem tipo e vínculo sem nova transação', async () => {
    await budget.getBudgets(); assert.equal(new URL(calls.at(-1).url).search, '');

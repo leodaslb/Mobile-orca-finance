@@ -3,6 +3,7 @@ import { CategorySuggestion } from '@/components/domain/CategorySuggestion';
 import { FormScrollView } from '@/components/common/KeyboardLayout';
 import { CreateSubcategoryModal } from '@/components/domain/CreateSubcategoryModal';
 import type { CatalogSubcategory } from '@/services/category.service';
+import type { Automation } from '@/services/planning-tools.service';
 
 import { CategoryIcon } from '@/components/common/CategoryIcon';
 import { ReceiptPicker } from '@/components/domain/ReceiptPicker';
@@ -54,6 +55,7 @@ interface TransactionFormProps {
   expenseOnly?: boolean;
   categories: { id: string; name: string; active: boolean }[];
   subcategories: { id: string; name: string; categoryId: string; active: boolean }[];
+  automations?: Automation[];
   busy?: boolean;
   editing?: boolean;
   error?: string;
@@ -93,7 +95,7 @@ function formatMoneyInput(value: string): string {
 export function TransactionForm({
   onSubmit,
   onPlaceInReflection,
-  initialValues, initialDescription, expenseOnly = false, categories, subcategories: catalogSubcategories, busy = false, editing = false, error,
+  initialValues, initialDescription, expenseOnly = false, categories, subcategories: catalogSubcategories, automations = [], busy = false, editing = false, error,
 }: TransactionFormProps) {
 
   const [type, setType] = useState<TransactionType>(initialValues?.type ?? 'expense');
@@ -116,8 +118,17 @@ export function TransactionForm({
   const [paymentOpen, setPaymentOpen] = useState(false);
 
   const [tagsInput, setTagsInput] = useState(initialValues?.tags?.join(', ') ?? '');
-  const [essentiality, setEssentiality] =
+  const [manualEssentiality, setEssentiality] =
     useState<Essentiality | null>(initialValues?.essentiality ?? null);
+  const activeAutomations = automations.filter(rule => rule.ativa && rule.atributoAlvo === 'essencialidade');
+  const automaticRule = type === 'expense' && !editing
+    ? activeAutomations.find(rule => subcategoryId && rule.subcategoriaId === subcategoryId)
+      ?? activeAutomations.find(rule => categoryId && rule.categoriaId === categoryId)
+    : undefined;
+  const automaticEssentiality: Essentiality | null = automaticRule
+    ? ({ ESSENCIAL: 'essential', NAO_ESSENCIAL: 'non_essential', NAO_CLASSIFICADA: 'unclassified' } as const)[automaticRule.valorDestino]
+    : null;
+  const essentiality = manualEssentiality ?? automaticEssentiality;
   const [freeSpending, setFreeSpending] = useState(initialValues?.freeSpending ?? false);
 
   const [detailsOpen, setDetailsOpen] = useState(true);
@@ -200,13 +211,14 @@ export function TransactionForm({
       paymentMethod,
       tags: tagsInput === initialValues?.tags?.join(', ') ? initialValues.tags : tags,
       notes: notes === initialValues?.notes ? notes : notes.trim() || null,
-      essentiality: type === 'expense' ? essentiality : initialValues?.type === 'income' ? initialValues.essentiality : null,
+      // Apenas escolha explícita é enviada; o backend resolve a automação vigente.
+      essentiality: type === 'expense' ? manualEssentiality : initialValues?.type === 'income' ? initialValues.essentiality : null,
       receiptUri: initialValues?.receiptUri ?? null,
       receiptFile: type === 'expense' ? receiptFile : null,
       freeSpending: type === 'expense' && freeSpending,
     };
 
-    if (!editing && requiresPurchaseReflection(input)) {
+    if (!editing && requiresPurchaseReflection({ ...input, essentiality })) {
       setReflectionInput(input);
       return;
     }
@@ -755,7 +767,7 @@ export function TransactionForm({
             </>}
             {editing && <Text style={styles.inputLabel}>Recorrência, lembretes e recibos existentes são preservados.</Text>}
             {/* ESSENCIAL */}
-            {type === 'expense' && (
+            {type === 'expense' && (<>
               <View
                 style={styles.essentialRow}
               >
@@ -780,7 +792,7 @@ export function TransactionForm({
                     }
                     accessibilityRole="radio"
                     accessibilityLabel="Compra essencial"
-                    accessibilityState={{ selected: essentiality === 'essential' }}
+                    accessibilityState={{ checked: essentiality === 'essential' }}
                     style={[
                       styles.essentialOption,
                       essentiality ===
@@ -808,7 +820,7 @@ export function TransactionForm({
                     }
                     accessibilityRole="radio"
                     accessibilityLabel="Compra não essencial"
-                    accessibilityState={{ selected: essentiality === 'non_essential' }}
+                    accessibilityState={{ checked: essentiality === 'non_essential' }}
                     style={[
                       styles.essentialOption,
                       essentiality ===
@@ -829,7 +841,10 @@ export function TransactionForm({
                   </Pressable>
                 </View>
               </View>
-            )}
+              {manualEssentiality === null && automaticEssentiality !== null && <Text accessibilityLiveRegion="polite" style={styles.automationHint}>
+                {automaticEssentiality === 'essential' ? 'Essencial' : automaticEssentiality === 'non_essential' ? 'Não essencial' : 'Não classificada'} · definido por automação ({automaticRule?.subcategoriaId ? 'subcategoria' : 'categoria'}). Sua escolha manual tem prioridade.
+              </Text>}
+            </>)}
           </View>
         )}
       </View>
@@ -880,6 +895,7 @@ export function TransactionForm({
 }
 
 const styles = StyleSheet.create({
+  automationHint: { fontFamily: fontFamily.regular, fontSize: fontSize.caption, color: colors.textSecondary, lineHeight: 20 },
   flex: {
     flex: 1,
   },

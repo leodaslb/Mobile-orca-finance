@@ -13,6 +13,7 @@ import { useAppSession } from '@/contexts/AppSessionContext';
 import { AsyncState } from '@/components/common/AsyncState';
 import { useProfileResource } from '@/hooks/useProfileResource';
 import { getTransactionCatalog } from '@/services/category.service';
+import { getAutomations } from '@/services/planning-tools.service';
 import { createTransaction, getTransactionById, updateTransaction, PartialTransactionWriteError } from '@/services/transaction.service';
 import { ApiError, errorMessage, getApiSession, SessionChangedError } from '@/services/api-client';
 import { createRemoteReflectionItem, getRemoteReflectionItem } from '@/services/reflection.service';
@@ -28,7 +29,8 @@ export default function NovaTransacaoScreen() {
     if (editId && reflectionItemId) throw new ApiError(400, 'Abra uma nova compra para confirmar a reflexão.');
     const reflection = reflectionItemId ? await getRemoteReflectionItem(reflectionItemId) : undefined;
     if (reflection && !reflection.liberado) throw new ApiError(409, 'Aguarde o fim do período de reflexão.');
-    return { catalog: await getTransactionCatalog(), reflection,
+    const [catalog, automations] = await Promise.all([getTransactionCatalog(), editId ? Promise.resolve([]) : getAutomations()]);
+    return { catalog, automations, reflection,
       original: editId ? await getTransactionById(editId) : undefined };
   }, [editId, reflectionItemId]);
   const { data, loading, error, reload } = useProfileResource(load);
@@ -82,7 +84,7 @@ export default function NovaTransacaoScreen() {
         {!!referenceDate && <Text style={{ paddingHorizontal: spacing.lg, color: colors.textSecondary, fontFamily: fontFamily.regular }}>Confira seus lançamentos de {referenceDate}{reminderCategoryId ? ` em ${data.catalog.categories.find(c => c.id === reminderCategoryId)?.name ?? 'uma categoria'}` : ''}. O lembrete não confirma que houve uma movimentação.</Text>}
         <TransactionForm
           key={`${account?.id}:${activeProfileId}:${editId ?? reflectionItemId ?? 'new'}`}
-          {...data.catalog} initialValues={data.original} editing={!!editId} busy={busy} error={submitError}
+          {...data.catalog} automations={data.automations} initialValues={data.original} editing={!!editId} busy={busy} error={submitError}
           initialDescription={data.reflection?.descricao} expenseOnly={!!reflectionItemId}
           onPlaceInReflection={!editId && !reflectionItemId ? async (input, hours) => {
             if (sending.current) return;

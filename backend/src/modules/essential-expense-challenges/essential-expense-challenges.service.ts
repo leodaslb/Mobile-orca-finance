@@ -53,7 +53,7 @@ export class EssentialExpenseChallengesService {
       const now = this.clock.now(); const { baseline, challenge } = this.periods(now);
       const today = new Date(now.toISOString().slice(0, 10) + 'T00:00:00Z');
       // Um aceite reserva o desafio, inclusive quando o período começa no próximo mês.
-      if (await this.data.active(profile, today, tx)) throw new ConflictException('Já existe desafio ativo neste perfil.');
+      if (await this.data.active(profile, dto.categoriaId.toLowerCase(), today, tx)) throw new ConflictException('Já existe desafio ativo nesta categoria do perfil.');
       const selected = (await this.proposals(profile, baseline, tx)).find(row => row.categoriaId === dto.categoriaId.toLowerCase());
       if (!selected) throw new BadRequestException('Categoria sem orçamento mensal elegível ou sem estouro mínimo de 5%.');
       if (selected.realized.greaterThan('99999999999999999.99')) throw new BadRequestException('Valor de referência excede a capacidade monetária do desafio.');

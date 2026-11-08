@@ -123,6 +123,7 @@ describe('Sprint 2 Parte 1: RF11/23/34/42/63/46 → HTTP → PostgreSQL', () => 
     expect(read.categorias).toMatchObject([{ valorRealizado: '75.00', percentualConsumido: 75, estado: 'PROXIMO_LIMITE' }]);
     expect(read.resumo).toMatchObject({ valorRealizado: '75.00', percentualConsumido: 75 });
     expect(read.transacoesVinculadas).toHaveLength(3);
+    expect(read.transacoesVinculadas.every((row: { descricao?: string }) => typeof row.descricao === 'string' && row.descricao.trim().length > 0)).toBe(true);
     expect((await app.inject({ method: 'GET', url: `${base()}/dashboard?year=2026&month=11`, headers: auth() })).json().saldoAtual).toBe(before);
     expect((await link(budget.id, linkedExpense, 'DELETE')).statusCode).toBe(204);
     expect((await link(budget.id, linkedExpense, 'DELETE')).statusCode).toBe(204);

@@ -159,3 +159,14 @@ npx expo start
 ```
 
 Abra o app pelo Expo Go compatível ou pressione `a` para usar o emulador Android. Reinicie o Expo após mudar a URL. O endereço padrão do APK faz parte do build; para atualizar esse padrão, gere outro APK. Na versão com **Configurar servidor**, também é possível informar outro endereço na tela de entrada sem novo build. Uma configuração salva no aparelho tem prioridade sobre o padrão; use **Usar endereço padrão do aplicativo** para removê-la.
+
+## Dados para apresentação da Sprint 2
+
+O roteiro `backend/prisma/seed-sprint2-presentation.cjs` complementa uma conta existente com dois perfis, histórico, orçamentos, metas, auditoria, automações, planos e desafios. Informe explicitamente a conta e a data de referência; `--apply` autoriza gravar no banco configurado no backend.
+
+```powershell
+cd backend
+npm run seed:sprint2 -- --email "seu-email@exemplo.com" --reference-date "2026-11-08" --apply
+```
+
+Roteiro calibrado para a apresentação de novembro/2026. Execute uma instância por vez. Não cria usuário nem troca senha; utiliza os Services do produto e mantém um backup inicial e manifesto em `backend/.cache/presentation-sprint2-<data>/`, ignorados pelo Git. A preparação não é uma transação única: pode ser retomada e foi verificada sem duplicação para a mesma referência. Reaplica nomes dos perfis, identificação/ativação do mensal principal e cota demonstrativa do segundo perfil; revise antes de reexecutar após alterações manuais. O processo não envia push. Aceites históricos dos desafios usam o mesmo service com Clock histórico apenas nesse processo.

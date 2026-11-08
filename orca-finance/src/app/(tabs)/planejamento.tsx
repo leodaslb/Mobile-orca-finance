@@ -163,7 +163,7 @@ export default function PlanejamentoScreen() {
       <Text style={styles.resourcesTitle}>OUTROS RECURSOS</Text>
       <Destination title="Outros orçamentos" caption="Períodos, viagens e eventos" href="/planejamento/orcamentos" />
       <Destination title="Orçamento zero" caption="Distribua a renda entre suas categorias" href={{ pathname: '/planejamento/orcamentos', params: { zero: 'true' } }} />
-      <Destination title="Despesas essenciais" caption="Propostas e acompanhamento de desafios" href="/planejamento/desafios" />
+      <Destination title="Desafios de economia" caption="Reduza gastos e acompanhe seu desafio" href="/planejamento/desafios" />
       <Destination title="Simuladores" caption="Compras, juros e custo de oportunidade" href="/planejamento/simuladores" />
       <Destination title="Grandes compras" caption="Organize seus planos futuros" href="/planejamento/grandes-compras" />
       <View style={styles.resourceLinks}>

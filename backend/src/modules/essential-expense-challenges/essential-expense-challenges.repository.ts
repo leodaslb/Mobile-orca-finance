@@ -16,8 +16,8 @@ export class EssentialExpenseChallengesRepository {
     return tx.transacao.findMany({ where: { perfilId: profile, tipo: 'DESPESA', status: 'EFETIVADA', essencialidade: 'ESSENCIAL',
       categoriaId: { not: null }, dataHora: { gte: range.start, lt: range.end } }, distinct: ['categoriaId'], select: { categoriaId: true } });
   }
-  active(profile: string, today: Date, tx: Prisma.TransactionClient) {
-    return tx.desafioEconomia.findFirst({ where: { perfilId: profile, dataFim: { gte: today } }, select: { id: true } });
+  active(profile: string, category: string, today: Date, tx: Prisma.TransactionClient) {
+    return tx.desafioEconomia.findFirst({ where: { perfilId: profile, categoriaId: category, dataFim: { gte: today } }, select: { id: true } });
   }
   create(profile: string, data: Omit<Prisma.DesafioEconomiaUncheckedCreateInput, 'perfilId'>, tx: Prisma.TransactionClient) {
     return tx.desafioEconomia.create({ data: { ...data, perfilId: profile } });

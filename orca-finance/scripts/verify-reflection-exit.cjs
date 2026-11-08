@@ -104,6 +104,7 @@ const field = (tree, placeholder) => nodes(tree).find(node => node.type === 'Tex
     '@/hooks/useProfileResource': { useProfileResource: loader => { capturedLoader = loader; return resource; } },
     '@/components/domain/TransactionForm': { TransactionForm: 'TransactionForm' },
     '@/services/category.service': { getTransactionCatalog: async () => catalog },
+    '@/services/planning-tools.service': { getAutomations: async () => [] },
     '@/services/api-client': api,
     '@/services/reflection.service': { getRemoteReflectionItem: async () => reflection },
     '@/services/transaction.service': { ...transactions, createTransaction: async (...args) => { writes++; assert.equal(args[2], 'item'); if (creationError) throw creationError; return { id: 'transaction' }; } },

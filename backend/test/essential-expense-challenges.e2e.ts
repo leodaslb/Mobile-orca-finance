@@ -107,7 +107,7 @@ describe('RF65 → US59 → RN-DES-02: leitura HTTP e PostgreSQL', () => {
     expect((await write('POST', base(2), { categoriaId: cats[5].id })).statusCode).toBe(400);
     expect((await write('POST', base(2), { categoriaId: cats[3].id, percentualReducao: 99, valorMeta: '1' })).statusCode).toBe(400);
   });
-  it('dois POST simultâneos aceitam só um; servidor recalcula após preview e reserva o próximo mês', async () => {
+  it('dois POST simultâneos da mesma categoria aceitam só um; recalcula após preview e reserva o próximo mês', async () => {
     const proposal = (await get('/candidates', 2)).json().candidates[0];
     await db.transacao.create({ data: { perfilId: profiles[2], categoriaId: proposal.categoriaId, tipo: 'DESPESA', status: 'EFETIVADA', descricao: 'Após proposta', valor: '500', dataHora: new Date('2026-10-11Z') } });
     const responses = await Promise.all([write('POST', base(2), { categoriaId: proposal.categoriaId }), write('POST', base(2), { categoriaId: proposal.categoriaId })]);
@@ -129,13 +129,32 @@ describe('RF65 → US59 → RN-DES-02: leitura HTTP e PostgreSQL', () => {
     expect((await write('PATCH', url, { nome: 'Invasão' }, 1)).statusCode).toBe(403);
     expect((await write('PATCH', `${base(1)}/${current.id}`, { nome: 'Outro perfil' }, 1)).statusCode).toBe(404);
   });
-  it('sem orçamento mensal não cria; estouro exato 5% é aceito e desafios antigos não bloqueiam outro perfil', async () => {
+  it('categorias diferentes aceitam POST simultâneos no mesmo perfil, com progresso independente e conflito por categoria', async () => {
+    const active = (await get('', 2)).json()[0];
+    const candidates = (await get('/candidates', 2)).json().candidates.filter((c: { categoriaId: string }) => c.categoriaId !== active.categoriaId);
+    expect(candidates).toHaveLength(2);
+    const results = await Promise.all(candidates.map((c: { categoriaId: string }) => write('POST', base(2), { categoriaId: c.categoriaId })));
+    expect(results.map(r => r.statusCode)).toEqual([201, 201]);
+    const rows = (await get('', 2)).json(); expect(rows).toHaveLength(3);
+    expect(new Set(rows.map((r: { categoriaId: string }) => r.categoriaId)).size).toBe(3);
+    const first = results[0].json(); const second = results[1].json();
+    await db.transacao.create({ data: { perfilId: profiles[2], categoriaId: first.categoriaId, tipo: 'DESPESA', status: 'EFETIVADA', descricao: 'Gasto do desafio', valor: '25', dataHora: new Date('2026-11-10Z') } });
+    expect((await get(`/${first.id}`, 2)).json().valorGastoAtual).toBe('25.00');
+    expect((await get(`/${second.id}`, 2)).json().valorGastoAtual).toBe('0.00');
+    for (const c of candidates) expect((await write('POST', base(2), { categoriaId: c.categoriaId })).statusCode).toBe(409);
+    // Expirar somente uma categoria libera novo aceite nela, sem remover as demais.
+    await db.desafioEconomia.update({ where: { id: first.id }, data: { dataInicio: new Date('2026-09-01Z'), dataFim: new Date('2026-09-30Z') } });
+    expect((await write('POST', base(2), { categoriaId: first.categoriaId })).statusCode).toBe(201);
+    expect((await write('POST', base(2), { categoriaId: second.categoriaId })).statusCode).toBe(409);
+  });
+  it('sem orçamento mensal não cria; estouro exato 5% é aceito; outro perfil e US17 não bloqueiam', async () => {
     const created = await write('POST', '/profiles', { nome: 'Limiar US59' }); expect(created.statusCode).toBe(201); profiles.push(created.json().id);
     expect((await write('POST', base(3), { categoriaId: category })).statusCode).toBe(400);
     expect((await write('PUT', `/profiles/${profiles[3]}/budgets/monthly/2026/10`, { categorias: [{ categoriaId: category, valorPlanejado: '1000' }] })).statusCode).toBe(200);
     await db.transacao.create({ data: { perfilId: profiles[3], categoriaId: category, tipo: 'DESPESA', status: 'EFETIVADA', essencialidade: 'ESSENCIAL', descricao: 'Limiar 5%', valor: '1050', dataHora: new Date('2026-10-10Z') } });
     expect((await get('/candidates', 3)).json().candidates[0]).toMatchObject({ percentualEstouro: 5, valorMetaSugerido: '1000.00' });
     await db.desafioEconomia.create({ data: { perfilId: profiles[3], valorAlvo: '12', dataInicio: new Date('2026-09-01Z'), dataFim: new Date('2026-09-30Z') } });
+    await db.desafioEconomia.create({ data: { perfilId: profiles[3], valorAlvo: '20', dataInicio: new Date('2026-11-01Z'), dataFim: new Date('2026-11-30Z') } });
     const r = await write('POST', base(3), { categoriaId: category }); expect(r.statusCode).toBe(201); expect(r.json()).toMatchObject({ valorReferencia: '1050.00', valorMeta: '1000.00', percentualReducao: 4.7619 });
   });
 });
