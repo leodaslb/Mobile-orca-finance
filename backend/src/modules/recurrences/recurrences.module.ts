@@ -11,8 +11,9 @@ import { RecurrencesScheduler } from './recurrences.scheduler';
 import { RemindersRepository } from './reminders.repository';
 import { RemindersService } from './reminders.service';
 import { RemindersController } from './reminders.controller';
+import { SpendingAlertsModule } from '../spending-alerts/spending-alerts.module';
 
-@Module({ imports: [PrismaModule, ClockModule, AuthModule, ProfilesModule, TransactionsModule],
+@Module({ imports: [PrismaModule, ClockModule, AuthModule, ProfilesModule, TransactionsModule, SpendingAlertsModule],
   providers: [RecurrencesRepository, RecurrencesService, RecurrencesScheduler, RemindersRepository, RemindersService],
   controllers: [RecurrencesController, RemindersController] })
 export class RecurrencesModule {}

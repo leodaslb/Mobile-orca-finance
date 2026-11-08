@@ -32,13 +32,15 @@ const goal = { id: 'goal-uuid', perfilId: 'profile-a', nome: 'Meta', valorAlvo: 
   const q=await planning.getFreeSpendingAllowance('2026-02'); assert.equal(q.usedCents,1125); assert.equal(q.remainingCents,-125);
   reply({}); await planning.saveFreeSpendingAllowance(999,'2026-02'); assert.deepEqual(calls.at(-1).body,{valorLimite:'9.99'}); assert.match(calls.at(-1).url,/2026\/2$/);
  });
- await check('US29 payload condicional, quatro períodos, PUSH/EMAIL por regra', async () => {
+ await check('US29 payload condicional, quatro períodos, somente PUSH por regra', async () => {
   reply({}); for (const period of ['DIARIO','SEMANAL','MENSAL','ANUAL']) {
-   await planning.saveSpendingRule({tipo:'LIMITE_CATEGORIA',categoriaId:'category-uuid',limitCents:4321,periodo:period,canais:['PUSH','EMAIL'],ativa:true},'rule-uuid');
-   assert.deepEqual(calls.at(-1).body,{tipo:'LIMITE_CATEGORIA',categoriaId:'category-uuid',valorLimite:'43.21',periodo:period,canais:['PUSH','EMAIL'],ativa:true}); assert.equal(calls.at(-1).options.method,'PATCH');
+   await planning.saveSpendingRule({tipo:'LIMITE_CATEGORIA',categoriaId:'category-uuid',limitCents:4321,periodo:period,canais:['PUSH'],ativa:true},'rule-uuid');
+   assert.deepEqual(calls.at(-1).body,{tipo:'LIMITE_CATEGORIA',categoriaId:'category-uuid',valorLimite:'43.21',percentualLimite:null,baseCalculo:null,periodo:period,canais:['PUSH'],ativa:true}); assert.equal(calls.at(-1).options.method,'PATCH');
   }
-  await planning.saveSpendingRule({tipo:'LIMITE_DIARIO',categoriaId:'ignored',limitCents:100,periodo:'ANUAL',canais:['EMAIL'],ativa:false});
-  assert.deepEqual(calls.at(-1).body,{tipo:'LIMITE_DIARIO',categoriaId:null,valorLimite:'1.00',periodo:'DIARIO',canais:['EMAIL'],ativa:false});
+  await planning.saveSpendingRule({tipo:'LIMITE_DIARIO',categoriaId:'ignored',limitCents:100,periodo:'ANUAL',canais:['PUSH'],ativa:false});
+  assert.deepEqual(calls.at(-1).body,{tipo:'LIMITE_DIARIO',categoriaId:null,valorLimite:'1.00',percentualLimite:null,baseCalculo:null,periodo:'DIARIO',canais:['PUSH'],ativa:false});
+  await planning.saveSpendingRule({tipo:'LIMITE_DIARIO',categoriaId:null,limitCents:100,periodo:'DIARIO',canais:['EMAIL','PUSH'],ativa:true});
+  assert.deepEqual(calls.at(-1).body.canais,['PUSH']);
   reply({},400); await assert.rejects(planning.saveSpendingRule({tipo:'LIMITE_DIARIO',limitCents:100,periodo:'DIARIO',categoriaId:null,canais:[],ativa:true}),e=>e.status===400);
  });
  await check('US10 mapper oficial, UUID, DATE, frequência, edição e aporte sem transação', async () => {

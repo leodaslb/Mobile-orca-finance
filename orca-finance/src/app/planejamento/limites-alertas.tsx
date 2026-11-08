@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppSwitch } from '@/components/common/AppSwitch';
+import { Badge, Choices, money } from '@/components/common/FinanceScreen';
 import { AsyncState } from '@/components/common/AsyncState';
 import { useProfileResource } from '@/hooks/useProfileResource';
 import { useProfileMutation } from '@/hooks/useProfileMutation';
@@ -29,8 +30,8 @@ function SpendingLimitsContent() {
       {!rules.length && <Text style={styles.caption}>Nenhum limite configurado.</Text>}
       {rules.map(rule => <Pressable key={rule.id} accessibilityRole="button" accessibilityLabel={`Editar limite ${resource.data?.categories.find(c => c.id === rule.categoriaId)?.name ?? 'diário'}`} onPress={() => setEditing(rule)} style={styles.ruleRow}>
         <View style={styles.categoryIcon}><IconBell size={22} color={colors.primary} /></View>
-        <View style={styles.flex}><Text style={styles.label}>{resource.data?.categories.find(c => c.id === rule.categoriaId)?.name ?? 'Limite diário'}</Text><Text style={styles.caption}>{periods[rule.periodo]} · {rule.ativa ? 'Ativo' : 'Inativo'} · {rule.canais.map(c => c === 'EMAIL' ? 'E-mail' : 'Push').join(' e ')}</Text><Text style={styles.caption}>Utilizado: {formatCurrency(decimalToCents(rule.valorConsumido))}{rule.alertaAtivo ? ' · Limite atingido' : ''}</Text></View>
-        <Text style={styles.amount}>{rule.valorLimite ? formatCurrency(decimalToCents(rule.valorLimite)) : '—'}</Text><IconPencil size={20} color={colors.textSecondary} />
+        <View style={[styles.flex, { gap: 6 }]}><Text style={styles.label}>{resource.data?.categories.find(c => c.id === rule.categoriaId)?.name ?? 'Limite diário'}</Text><Badge label={rule.ativa ? 'Ativo' : 'Inativo'} tone={rule.ativa ? 'positive' : 'neutral'} /><Text style={styles.amount}>{rule.tipo === 'PERCENTUAL_RENDA' ? `${rule.percentualLimite}% · ${rule.baseCalculo === 'RENDA_PLANEJADA' ? 'renda planejada' : 'renda efetivada'}` : rule.valorLimite ? formatCurrency(decimalToCents(rule.valorLimite)) : '—'}</Text><Text style={styles.caption}>{periods[rule.periodo]} · {rule.canais.includes('PUSH') ? 'Push' : 'Push não ativado'}</Text><RuleEvaluation rule={rule} /></View>
+        <IconPencil size={20} color={colors.textSecondary} />
       </Pressable>)}
     </View>;
   }
@@ -41,11 +42,11 @@ function SpendingLimitsContent() {
       {resource.data && <>
         {group('Limite diário', resource.data.rules.filter(rule => rule.tipo === 'LIMITE_DIARIO'))}
         {group('Limites por categoria', resource.data.rules.filter(rule => rule.tipo === 'LIMITE_CATEGORIA'))}
-        {resource.data.rules.filter(rule => rule.tipo === 'PERCENTUAL_RENDA').map(rule => <View key={rule.id} style={styles.card}><Text style={styles.label}>Regra percentual de renda existente</Text><Text style={styles.caption}>{rule.ativa ? 'Ativo' : 'Inativo'} · edição indisponível no contrato atual.</Text></View>)}
+        {group('Regras percentuais de renda', resource.data.rules.filter(rule => rule.tipo === 'PERCENTUAL_RENDA'))}
         <Pressable style={styles.addLimit} onPress={() => setEditing('new')} accessibilityRole="button" accessibilityLabel="Adicionar limite"><IconPlus color={colors.primary} /><Text style={styles.label}>Adicionar limite</Text></Pressable>
-        <View style={styles.card}><Text style={styles.sectionTitle}>Receber alertas por</Text><Text style={styles.caption}>Push e e-mail são configurados ao editar cada limite. A entrega de notificações ainda não está disponível.</Text></View>
+        <View style={styles.card}><Text style={styles.sectionTitle}>Alertas por push</Text><Text style={styles.caption}>Ative Push na regra e registre seu aparelho em Notificações. Uma nova violação pode gerar outro aviso após o consumo sair da condição de alerta.</Text></View>
       </>}
-      <Text style={styles.caption}>Limites por percentual de renda ainda não estão disponíveis. Cada período utiliza o calendário UTC.</Text>
+      <Text style={styles.caption}>Cada regra possui seu período, com calendário UTC.</Text>
     </ScrollView>
     <Modal visible={editing !== null} transparent animationType="slide" onRequestClose={() => { if (!formBusy) setEditing(null); }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}><SafeAreaView edges={['bottom']} style={styles.sheet}>
@@ -57,38 +58,48 @@ function SpendingLimitsContent() {
     </Modal>
   </SafeAreaView>;
 }
+function RuleEvaluation({ rule }: { rule: SpendingRule }) {
+  const limit = rule.avaliacaoAtual?.limiteCalculado ?? rule.valorLimite;
+  return <>
+    <Text style={styles.caption}>Utilizado: {money(rule.avaliacaoAtual?.valorAtual ?? rule.valorConsumido)}</Text>
+    <Text style={styles.caption}>Limite no período: {limit === null ? 'Não calculável' : money(limit)}</Text>
+    <Text style={styles.caption}>{rule.percentualConsumido === null ? 'Percentual consumido não calculável' : `${rule.percentualConsumido}% consumido`}{rule.alertaAtivo ? ' · Alerta ativo na avaliação atual' : rule.limiteAtingido ? ' · Limite atingido; regra inativa' : ''}</Text>
+    <Text style={styles.caption}>Período UTC: {rule.inicio.slice(0, 10)} a {new Date(new Date(rule.fimExclusivo).getTime() - 1).toISOString().slice(0, 10)}</Text>
+  </>;
+}
 function RuleForm({ initial, categories, onSaved, onCancel, onBusyChange }: { initial?: SpendingRule; categories: CatalogCategory[]; onSaved: () => void; onCancel?: () => void; onBusyChange: (busy: boolean) => void }) {
-  const [type, setType] = useState<SpendingRuleInput['tipo']>(initial?.tipo === 'LIMITE_CATEGORIA' ? 'LIMITE_CATEGORIA' : 'LIMITE_DIARIO');
+  const [type, setType] = useState<SpendingRuleInput['tipo']>(initial?.tipo ?? 'LIMITE_DIARIO');
+  const [percentage, setPercentage] = useState(initial?.percentualLimite?.toString() ?? '');
+  const [base, setBase] = useState<'RENDA_EFETIVADA' | 'RENDA_PLANEJADA'>(initial?.baseCalculo ?? 'RENDA_EFETIVADA');
   const [category, setCategory] = useState(initial?.categoriaId ?? null);
   const [period, setPeriod] = useState<RulePeriod>(initial?.periodo ?? 'DIARIO');
   const [active, setActive] = useState(initial?.ativa ?? true);
-  const [channels, setChannels] = useState<RuleChannel[]>(initial?.canais ?? []);
+  const [channels, setChannels] = useState<RuleChannel[]>(initial ? initial.canais.filter((channel): channel is RuleChannel => channel === 'PUSH') : ['PUSH']);
   const [value, setValue] = useState(initial?.valorLimite ? formatCurrency(decimalToCents(initial.valorLimite)) : '');
   const [validation, setValidation] = useState(''); const mutation = useProfileMutation();
   useEffect(() => { onBusyChange(mutation.busy); return () => onBusyChange(false); }, [mutation.busy, onBusyChange]);
   function channel(name: RuleChannel, checked: boolean) { setChannels(c => checked ? [...new Set([...c, name])] : c.filter(v => v !== name)); }
   function save() {
     const limitCents = parseCurrencyToCents(value);
-    if (!limitCents || limitCents <= 0 || !channels.length || (type === 'LIMITE_CATEGORIA' && !category)) { setValidation('Informe limite positivo, categoria quando aplicável e ao menos um canal.'); return; }
-    setValidation(''); void mutation.run(() => saveSpendingRule({ tipo: type, categoriaId: category, periodo: period, limitCents, canais: channels, ativa: active }, initial?.id), onSaved);
+    const percent = Number(percentage.replace(',', '.'));
+    if (!channels.length || (type !== 'LIMITE_DIARIO' && !category) || (type === 'PERCENTUAL_RENDA' ? !percentage.trim() || !Number.isFinite(percent) || percent <= 0 || percent > 999.9999 : !limitCents || limitCents <= 0)) { setValidation('Informe valor ou percentual positivo, categoria quando aplicável e ative os alertas por push.'); return; }
+    setValidation(''); void mutation.run(() => saveSpendingRule({ tipo: type, categoriaId: category, periodo: period, limitCents: limitCents ?? 0, percentualLimite: percent, baseCalculo: base, canais: channels, ativa: active }, initial?.id), onSaved);
   }
-  if (initial?.tipo === 'PERCENTUAL_RENDA') return <View style={styles.card}><Text style={styles.pending}>Regra percentual existente: edição indisponível no contrato atual.</Text></View>;
   return <View style={styles.form} pointerEvents={mutation.busy ? 'none' : 'auto'}>
     <View style={styles.row}><Text style={styles.sectionTitle}>{initial ? 'Editar limite' : 'Novo limite'}</Text><Pressable accessibilityRole="button" accessibilityLabel="Fechar edição de limite" disabled={mutation.busy} onPress={onCancel}><IconX color={colors.textSecondary} /></Pressable></View>
-    <View style={styles.row}>{(['LIMITE_DIARIO', 'LIMITE_CATEGORIA'] as const).map(v => <Pressable key={v} accessibilityRole="radio" accessibilityState={{ selected: type === v }} onPress={() => setType(v)}><Text style={[styles.label, { color: type === v ? colors.primary : colors.textSecondary }]}>{v === 'LIMITE_DIARIO' ? 'Diário' : 'Por categoria'}</Text></Pressable>)}</View>
-    {type === 'LIMITE_CATEGORIA' && <>
+    <Choices label="Tipo de regra" value={type} onChange={setType} options={[{ value: 'LIMITE_DIARIO', label: 'Diário' }, { value: 'LIMITE_CATEGORIA', label: 'Por categoria' }, { value: 'PERCENTUAL_RENDA', label: '% da renda' }]} />
+    {type !== 'LIMITE_DIARIO' && <>
       <Text style={styles.label}>Categoria</Text>
       {categories.filter(c => c.active || c.id === initial?.categoriaId).map(c => <Pressable key={c.id} onPress={() => setCategory(c.id)} accessibilityRole="radio" accessibilityState={{ selected: c.id === category }} style={{ paddingVertical: spacing.sm }}><Text style={[styles.caption, { color: c.id === category ? colors.primary : colors.textSecondary }]}>{c.id === category ? '● ' : '○ '}{c.name}</Text></Pressable>)}
-      <Text style={styles.label}>Período</Text><View style={styles.row}>{(['DIARIO','SEMANAL','MENSAL','ANUAL'] as const).map(v => <Pressable key={v} onPress={() => setPeriod(v)} accessibilityRole="radio" accessibilityState={{ selected: period === v }}><Text style={[styles.caption, { color: period === v ? colors.primary : colors.textSecondary }]}>{({ DIARIO: 'Diário', SEMANAL: 'Semanal', MENSAL: 'Mensal', ANUAL: 'Anual' })[v]}</Text></Pressable>)}</View>
+      <Choices label="Período" value={period} onChange={setPeriod} options={(['DIARIO', 'SEMANAL', 'MENSAL', 'ANUAL'] as const).map(value => ({ value, label: periods[value] }))} />
     </>}
-    <TextInput accessibilityLabel="Valor do limite" style={styles.input} value={value} onChangeText={setValue} keyboardType="decimal-pad" placeholder="R$ 0,00" />
+    {type === 'PERCENTUAL_RENDA' ? <><TextInput accessibilityLabel="Percentual da renda" style={styles.input} value={percentage} onChangeText={setPercentage} keyboardType="decimal-pad" placeholder="Percentual" /><Choices label="Base de renda" value={base} onChange={setBase} options={[{ value: 'RENDA_EFETIVADA', label: 'Efetivada' }, { value: 'RENDA_PLANEJADA', label: 'Efetivada + prevista registrada' }]} /><Text style={styles.caption}>A API calcula o limite usando a renda do período. A renda planejada inclui receitas efetivadas e previstas registradas, sem expandir recorrências futuras.</Text></> : <TextInput accessibilityLabel="Valor do limite" style={styles.input} value={value} onChangeText={setValue} keyboardType="decimal-pad" placeholder="R$ 0,00" />}
     <View style={styles.row}><Text style={styles.label}>Ativar regra</Text><AppSwitch value={active} onChange={setActive} accessibilityLabel="Ativar regra" /></View>
-    <Text style={styles.label}>Receber alertas por</Text>
+    <Text style={styles.label}>Notificações</Text>
     <View style={styles.row}><Text style={styles.label}>Push</Text><AppSwitch value={channels.includes('PUSH')} onChange={v => channel('PUSH', v)} accessibilityLabel="Receber alertas por push" /></View>
-    <View style={styles.row}><Text style={styles.label}>E-mail</Text><AppSwitch value={channels.includes('EMAIL')} onChange={v => channel('EMAIL', v)} accessibilityLabel="Receber alertas por e-mail" /></View>
-    {initial && <Text style={styles.caption}>Utilizado: {formatCurrency(decimalToCents(initial.valorConsumido))} · {initial.percentualConsumido ?? '—'}%{initial.alertaAtivo ? ' · Limite atingido' : ''}</Text>}
+    {initial && <><Text style={styles.caption}>Avaliação da última consulta da regra salva. Alterações acima serão reavaliadas ao salvar.</Text><RuleEvaluation rule={initial} /></>}
     {!!(validation || mutation.error) && <Text accessibilityRole="alert" style={styles.pending}>{validation || mutation.error}</Text>}
-    <Pressable disabled={mutation.busy} onPress={save} style={styles.saveButton}><Text style={styles.saveText}>{mutation.busy ? 'Salvando…' : 'Salvar regra'}</Text></Pressable>
+    <Pressable accessibilityRole="button" disabled={mutation.busy} onPress={save} style={styles.saveButton}><Text style={styles.saveText}>{mutation.busy ? 'Salvando…' : 'Salvar regra'}</Text></Pressable>
     {onCancel && <Pressable onPress={onCancel}><Text style={styles.caption}>Cancelar</Text></Pressable>}
   </View>;
 }

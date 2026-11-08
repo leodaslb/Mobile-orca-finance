@@ -1,0 +1,52 @@
+import { useCallback, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { Text, View } from 'react-native';
+import { AppCard } from '@/components/common/AppCard';
+import { Action, Badge, Choices, DateField, EmptyState, FinanceScreen, inputDate, money, Notice, ui } from '@/components/common/FinanceScreen';
+import { AsyncState } from '@/components/common/AsyncState';
+import { useProfileResource } from '@/hooks/useProfileResource';
+import { useAppSession } from '@/contexts/AppSessionContext';
+import { getCompletion, getMetrics, getProjection, getTrends, getPeriodExpenses, getPeriodTransactions, type Projection } from '@/services/insight.service';
+import { decimalToCents } from '@/utils/currency';
+import { getBudgets } from '@/services/budget.service';
+import { colors } from '@/theme';
+
+export default function AnalysesRoute() { const { activeProfileId } = useAppSession(); const params = useLocalSearchParams<{ mode?: string; periodStart?: string; periodEnd?: string }>(); return <Analyses key={`${activeProfileId}:${params.mode}:${params.periodStart}:${params.periodEnd}`} />; }
+function Analyses() {
+  const params = useLocalSearchParams<{ mode?: string; periodStart?: string; periodEnd?: string }>();
+  const [mode, setMode] = useState(params.mode ?? 'metrics');
+  const [window, setWindow] = useState<'6m' | '12m'>('6m');
+  const year = new Date().getUTCFullYear();
+  const [start, setStart] = useState(`01/01/${year}`); const [end, setEnd] = useState(`31/12/${year}`);
+  const [range, setRange] = useState<{ start: string; end: string }>(); const [error, setError] = useState('');
+  const resource = useProfileResource(useCallback(async () => {
+    if (mode === 'trends') return { trends: await getTrends() };
+    if (mode === 'cash') return { cash: await getProjection() };
+    if (mode === 'goals') return { goals: await getCompletion(window) };
+    if (mode === 'weekly' && params.periodStart && params.periodEnd) return { weekly: await getPeriodExpenses(params.periodStart, params.periodEnd), movements: (await getPeriodTransactions(params.periodStart, params.periodEnd)).filter(t => t.tipo === 'DESPESA' && t.status === 'EFETIVADA').sort((a, b) => decimalToCents(b.valor) - decimalToCents(a.valor)).slice(0, 3), budgets: await getBudgets() };
+    return { metrics: await getMetrics(range?.start, range?.end) };
+  }, [mode, window, range, params.periodStart, params.periodEnd]));
+  const data = resource.data;
+  const timeline = new Map<string, Projection['next30Days']['movimentos']>();
+  for (const movement of data?.cash?.next30Days.movimentos ?? []) {
+    const day = timeline.get(movement.data) ?? [];
+    day.push(movement); timeline.set(movement.data, day);
+  }
+  return <FinanceScreen title="Análises financeiras" refresh={resource.reload} refreshing={resource.refreshing}>
+    <Choices label="Visão" value={mode} onChange={v => { setError(''); setMode(v); }} options={[{ value: 'metrics', label: 'Métricas' }, { value: 'trends', label: 'Tendências' }, { value: 'cash', label: 'Fluxo futuro' }, { value: 'goals', label: 'Metas' }, ...(params.periodStart ? [{ value: 'weekly', label: 'Semana do resumo' }] : [])]} />
+    {data?.metrics && <><Text style={ui.caption}>{data.metrics.period.startDate} a {data.metrics.period.endDate}</Text><AppCard style={ui.card}><Badge label="Receitas e despesas efetivadas" /><Text style={ui.heading}>Taxa de poupança</Text><Text style={[ui.amount, { color: data.metrics.savingsRate.value !== null && data.metrics.savingsRate.value < 0 ? colors.negative : colors.textPrimary }]}>{data.metrics.savingsRate.value === null ? 'Não calculável' : `${data.metrics.savingsRate.value}%`}</Text>{!data.metrics.savingsRate.calculable && <Text style={ui.caption}>Sem receitas no período.</Text>}</AppCard><AppCard style={ui.card}><Text style={ui.heading}>Saldo médio diário</Text><Text style={ui.amount}>{money(data.metrics.averageDailyBalance)}</Text><Text style={ui.caption}>Média dos saldos ao fim de cada dia do período consultado.</Text></AppCard></>}
+    {mode === 'metrics' && <><Text style={ui.caption}>Padrão anual. Escolha outro período se desejar. Os resultados mostram o último período consultado; aplique as datas para atualizar.</Text><DateField label="Início" value={start} onChange={setStart} /><DateField label="Fim" value={end} onChange={setEnd} /><Action secondary label="Aplicar período" onPress={() => { try { const a = inputDate(start), b = inputDate(end); if (a > b) { setError('Revise o intervalo.'); return; } setError(''); setRange({ start: a, end: b }); } catch { setError('Informe datas válidas.'); } }} /><Action secondary label="Voltar ao ano atual" onPress={() => { setStart(`01/01/${year}`); setEnd(`31/12/${year}`); setError(''); setRange(undefined); }} /></>}
+    {mode === 'goals' && <Choices label="Janela histórica" value={window} onChange={setWindow} options={[{ value: '6m', label: '6 meses' }, { value: '12m', label: '12 meses' }]} />}
+    {(resource.loading || resource.error) && <AsyncState loading={resource.loading} error={resource.error} onRetry={resource.reload} />}{!!error && <Notice>{error}</Notice>}
+    {data?.trends && <><Text style={ui.caption}>Mês atual {data.trends.currentMonth.partial ? '(parcial)' : ''} até {new Date(data.trends.currentMonth.asOfDate).toLocaleString('pt-BR')}. Referência mensal: trimestre {data.trends.referenceQuarter.startDate} a {data.trends.referenceQuarter.endDate}.</Text>
+      <Text style={ui.caption}>A média mensal usa os três meses do trimestre anterior. Variações entre −10% e +10% são estáveis.</Text>
+      {!data.trends.categories.length && <EmptyState title="Nenhuma categoria disponível para comparação." description="Os gastos registrados no perfil serão comparados aqui." />}
+      {data.trends.categories.map(c => { const maximum = Math.max(Number(c.currentMonthTotal), Number(c.referenceMonthlyAverage), 0.01); return <AppCard key={c.categoriaId ?? 'none'} style={ui.card}><Text style={ui.heading}>{c.categoriaNome}</Text><Text style={ui.caption}>Mês atual: {money(c.currentMonthTotal)}</Text><View style={{ height: 8, borderRadius: 8, backgroundColor: colors.primaryTint }}><View style={{ width: `${Number(c.currentMonthTotal) / maximum * 100}%`, height: 8, borderRadius: 8, backgroundColor: colors.primary }} /></View><Text style={ui.caption}>Média mensal anterior: {money(c.referenceMonthlyAverage)}</Text><View style={{ height: 8, borderRadius: 8, backgroundColor: colors.border }}><View style={{ width: `${Number(c.referenceMonthlyAverage) / maximum * 100}%`, height: 8, borderRadius: 8, backgroundColor: colors.navInactive }} /></View><Text style={[ui.heading, { color: c.trend === 'AUMENTANDO' ? colors.negative : c.trend === 'DIMINUINDO' ? colors.positive : colors.textSecondary }]}>{({ ESTAVEL: 'Estável', AUMENTANDO: 'Aumentando', DIMINUINDO: 'Diminuindo' })[c.trend]} · {c.variationPercentage === null ? 'Variação não calculável' : `${c.variationPercentage}%`}</Text></AppCard>; })}</>}
+    {data?.cash && <><AppCard style={ui.card}><Text style={ui.heading}>Saldo atual: {money(data.cash.saldoAtual)}</Text><Text style={ui.heading}>Estimativa no fim do mês: {money(data.cash.saldoProjetadoFimMes)}</Text><Text style={ui.caption}>Próximos 30 dias: {data.cash.next30Days.startDate} a {data.cash.next30Days.endDate}</Text><Text style={ui.caption}>Entradas: {money(data.cash.next30Days.entradasPrevistas)} · Saídas: {money(data.cash.next30Days.saidasPrevistas)}</Text><Text style={ui.amount}>{money(data.cash.next30Days.saldoProjetadoFinal)}</Text><Text style={ui.caption}>Saldo projetado no fim dos 30 dias</Text></AppCard>
+      <Text style={ui.heading}>Linha do tempo · próximos 30 dias</Text><Text style={ui.caption}>Previsões a partir de lançamentos previstos e recorrências. Estes valores ainda não compõem o saldo efetivado.</Text>
+      {!timeline.size && <EmptyState title="Nenhum movimento previsto." description="Lançamentos previstos e recorrências aparecerão nesta linha do tempo." />}{[...timeline].map(([day, movements]) => <AppCard key={day} style={ui.card}><Text style={ui.heading}>{day.split('-').reverse().join('/')}</Text>{movements.map((m, i) => <View key={`${m.descricao}:${i}`} style={{ gap: 6, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: colors.border }}><View style={ui.split}><Text style={[ui.heading, { flex: 1 }]}>{m.descricao}</Text><Text style={[ui.heading, { color: m.tipo === 'RECEITA' ? colors.positive : colors.negative }]}>{money(m.valor)}</Text></View><Text style={ui.caption}>{m.tipo === 'RECEITA' ? 'Entrada' : 'Saída'} · Previsto ({m.origem === 'RECORRENCIA' ? 'recorrência' : 'lançamento registrado'})</Text></View>)}</AppCard>)}</>}
+    {data?.goals && <AppCard style={ui.card}><Text style={ui.heading}>Taxa de realização</Text><Text style={ui.amount}>{data.goals.completionRate === null ? 'Sem metas encerradas' : `${data.goals.completionRate}%`}</Text><Text style={ui.caption}>{data.goals.startDate} até antes de {data.goals.endDate} (UTC)</Text><Text style={ui.caption}>{data.goals.completedGoals} cumpridas de {data.goals.closedGoals} encerradas. Considera aportes até o prazo; metas com prazo hoje ainda estão abertas.</Text></AppCard>}
+    {data?.weekly && <><Text style={ui.heading}>Semana de {params.periodStart} a {params.periodEnd}</Text><Text style={ui.amount}>{money(data.weekly.totalGasto)}</Text>{data.weekly.categorias.map(c => <Text key={c.categoriaId ?? 'none'} style={ui.caption}>{c.nome ?? 'Sem categoria'}: {money(c.valor)}</Text>)}<Text style={ui.heading}>Orçamentos relacionados</Text>{data.budgets?.filter(b => b.ativo && b.dataInicio <= params.periodEnd! && b.dataFim >= params.periodStart!).map(b => <AppCard style={ui.card} key={b.id}><Text style={ui.heading}>{b.nome ?? b.tipo}</Text><Text style={ui.caption}>Período original: {b.dataInicio} a {b.dataFim}</Text><Text style={ui.caption}>{money(b.resumo.valorRealizado)} de {money(b.resumo.valorPlanejado)}</Text></AppCard>)}<Text style={ui.caption}>Dados atuais da API; alterações posteriores podem mudar os valores do resumo recebido.</Text></>}
+    {data?.movements && <><Text style={ui.heading}>Maiores despesas da semana</Text>{data.movements.length === 0 && <Text style={ui.caption}>Sem despesas efetivadas nessa semana.</Text>}{data.movements.map(t => <AppCard key={t.id} style={ui.card}><Text style={ui.heading}>{t.descricao}</Text><Text style={ui.caption}>{money(t.valor)} · {new Date(t.dataHora).toLocaleString('pt-BR')}</Text></AppCard>)}</>}
+  </FinanceScreen>;
+}

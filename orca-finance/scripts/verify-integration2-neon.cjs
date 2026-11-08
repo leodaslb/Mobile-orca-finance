@@ -79,9 +79,9 @@ async function leonardo(){
   await check('US29 regras UUID, diário, categoria, períodos/canais, edição e rejeições',async()=>{
    rule=await planning.saveSpendingRule({tipo:'LIMITE_DIARIO',categoriaId:null,limitCents:1500,periodo:'DIARIO',canais:['PUSH'],ativa:true});assert.match(rule.id,/^[a-f0-9-]{36}$/);
    for(const period of ['DIARIO','SEMANAL','MENSAL','ANUAL']){
-    const row=await planning.saveSpendingRule({tipo:'LIMITE_CATEGORIA',categoriaId:catalog.categories[0].id,limitCents:5000,periodo:period,canais:['PUSH','EMAIL'],ativa:true});assert.equal(row.periodo,period);assert.deepEqual(row.canais,['EMAIL','PUSH']);
+    const row=await planning.saveSpendingRule({tipo:'LIMITE_CATEGORIA',categoriaId:catalog.categories[0].id,limitCents:5000,periodo:period,canais:['PUSH'],ativa:true});assert.equal(row.periodo,period);assert.deepEqual(row.canais,['PUSH']);
    }
-   rule=await planning.saveSpendingRule({tipo:'LIMITE_DIARIO',categoriaId:null,limitCents:2500,periodo:'DIARIO',canais:['EMAIL'],ativa:false},rule.id);assert.equal(rule.valorLimite,'25.00');assert.equal(rule.ativa,false);
+   rule=await planning.saveSpendingRule({tipo:'LIMITE_DIARIO',categoriaId:null,limitCents:2500,periodo:'DIARIO',canais:['PUSH'],ativa:false},rule.id);assert.equal(rule.valorLimite,'25.00');assert.equal(rule.ativa,false);
    await assert.rejects(planning.saveSpendingRule({tipo:'LIMITE_DIARIO',categoriaId:null,limitCents:1,periodo:'DIARIO',canais:[],ativa:true}),e=>e.status===400);
    await assert.rejects(client.apiRequest(client.profilePath('spending-rules'),{method:'POST',body:{tipo:'PERCENTUAL_RENDA',percentualLimite:'10',baseCalculo:'RENDA_EFETIVADA',periodo:'MENSAL',canais:['PUSH']}}),e=>e.status===400);
   });

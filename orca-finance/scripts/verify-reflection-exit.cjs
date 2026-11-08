@@ -36,6 +36,7 @@ function ui(extra = {}) {
     '@/components/domain/CreateSubcategoryModal': { CreateSubcategoryModal: 'CreateSubcategoryModal' },
     '@/components/common/AppSwitch': { AppSwitch: 'AppSwitch' },
     '@/components/domain/ReceiptPicker': { ReceiptPicker: 'ReceiptPicker' },
+    '@/components/domain/CategorySuggestion': { CategorySuggestion: 'CategorySuggestion' },
     '@/components/domain/PurchaseReflectionModal': { PurchaseReflectionModal: 'PurchaseReflectionModal' },
     '@/components/domain/RecurrenceConfigurationModal': { RecurrenceConfigurationModal: 'RecurrenceConfigurationModal' },
     '@/components/common/AppCard': { AppCard: 'AppCard' },

@@ -22,7 +22,7 @@ describe('US12: reflexão e relógio', () => {
   const entradaEm = new Date('2026-10-01T12:00:00Z');
   let now: Date;
   const create = jest.fn(async (_profile: string, descricao: string, date: Date, duracaoHoras: number) =>
-    ({ id: 'item', perfilId: 'profile', descricao, entradaEm: date, duracaoHoras }));
+    ({ id: 'item', perfilId: 'profile', descricao, entradaEm: date, duracaoHoras, createdAt: date, updatedAt: date }));
   const find = jest.fn();
   const service = new ReflectionService({ create, find } as unknown as ReflectionRepository,
     { assertOwnership: jest.fn() } as unknown as ProfilesService, { now: () => now } as Clock, {} as TransactionsService);
@@ -34,7 +34,7 @@ describe('US12: reflexão e relógio', () => {
       duracaoHoras: 3, liberaEm: '2026-10-01T15:00:00.000Z', liberado: false });
   });
   it('libera exatamente no instante calculado, sem persistir o estado derivado', async () => {
-    find.mockResolvedValue({ id: 'item', perfilId: 'profile', descricao: 'Compra', entradaEm, duracaoHoras: 48 });
+    find.mockResolvedValue({ id: 'item', perfilId: 'profile', descricao: 'Compra', entradaEm, duracaoHoras: 48, createdAt: entradaEm, updatedAt: entradaEm });
     now = new Date('2026-10-03T11:59:59.999Z');
     expect((await service.detail('user', 'profile', 'item')).liberado).toBe(false);
     now = new Date('2026-10-03T12:00:00Z');

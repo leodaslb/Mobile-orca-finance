@@ -1,0 +1,11 @@
+import { apiRequest, profilePath } from './api-client';
+export interface Automation { id: string; categoriaId: string | null; subcategoriaId: string | null; atributoAlvo: 'essencialidade'; valorDestino: 'ESSENCIAL' | 'NAO_ESSENCIAL' | 'NAO_CLASSIFICADA'; ativa: boolean }
+export const getAutomations = () => apiRequest<Automation[]>(profilePath('automation-rules'));
+export const saveAutomation = (body: Omit<Automation, 'id'>, id?: string) => apiRequest<Automation>(profilePath(`automation-rules${id ? `/${encodeURIComponent(id)}` : ''}`), { method: id ? 'PATCH' : 'POST', body });
+export interface PurchasePlan { id: string; nome: string; valorTotal: string; valorMensalPlanejado: string | null; quantidadeMesesEstimada: number | null; dataInicio: string }
+export const getPurchasePlans = () => apiRequest<PurchasePlan[]>(profilePath('large-purchase-plans'));
+export const savePurchasePlan = (body: Omit<PurchasePlan, 'id' | 'quantidadeMesesEstimada'>, id?: string) => apiRequest<PurchasePlan>(profilePath(`large-purchase-plans${id ? `/${encodeURIComponent(id)}` : ''}`), { method: id ? 'PATCH' : 'POST', body });
+export interface PurchaseSimulation { valorTotal: string; quantidadeParcelas: number; valorParcela: string; criaTransacoes: false; meses: { competencia: string; valorParcela: string; rendaProjetada: string; percentualRendaComprometida: number | null; impactoOrcamentoCategoria: { valorPlanejado: string; valorProjetadoComCompra: string; percentualProjetado: number | null } | null }[] }
+export const simulatePurchase = (body: { valor: string; parcelas: number; dataPrimeiraParcela: string; categoriaId?: string }) => apiRequest<PurchaseSimulation>(profilePath('simulations/purchase-impact'), { method: 'POST', body });
+export interface Calculation { valorFuturo?: string; jurosAcumulados?: string; valorFuturoHipotetico?: string; ganhoHipotetico?: string }
+export const calculate = (mode: 'compound-interest' | 'opportunity-cost', valor: string, taxa: number, periods: number) => apiRequest<Calculation>(`/calculations/${mode}`, { method: 'POST', body: mode === 'compound-interest' ? { valorInicial: valor, taxaPercentual: taxa, quantidadePeriodos: periods } : { valorGastoHipotetico: valor, taxaRetornoPercentual: taxa, quantidadePeriodos: periods } });

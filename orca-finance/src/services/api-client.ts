@@ -8,6 +8,21 @@ export class SessionChangedError extends Error {
 
 let session = { token: null as string | null, profileId: null as string | null, revision: 0 };
 let onUnauthorized: (() => void) | undefined;
+let serverURL: string | null = null;
+export function getApiServerURL() { return serverURL ?? process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '') ?? ''; }
+export function normalizeServerURL(value: string) {
+  try {
+    if (!/^https?:\/\//i.test(value.trim())) throw new Error();
+    const url = new URL(value.trim());
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new Error();
+    return url.origin;
+  } catch { throw new ApiError(400, 'Informe um endereço como http://192.168.1.10:3000, sem usuário, senha ou caminho.'); }
+}
+export function setApiServerURL(value: string | null) {
+  if (session.token) throw new ApiError(400, 'Saia da conta antes de alterar o servidor.');
+  const next = value === null ? null : normalizeServerURL(value);
+  if (next !== serverURL) { serverURL = next; setApiSession(null, null); }
+}
 export function getApiSession() { return { ...session }; }
 export function setApiSession(token: string | null, profileId: string | null) {
   session = { token, profileId, revision: session.revision + 1 };
@@ -34,7 +49,7 @@ export async function apiRequest<T>(path: string, options: {
   authenticated?: boolean; token?: string; signal?: AbortSignal;
   responseType?: 'json' | 'file';
 } = {}): Promise<T> {
-  const baseURL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '');
+  const baseURL = getApiServerURL();
   if (!baseURL || !/^https?:\/\//i.test(baseURL)) {
     throw new ApiError(0, 'O serviço não está configurado neste aplicativo. Entre em contato com o responsável.');
   }

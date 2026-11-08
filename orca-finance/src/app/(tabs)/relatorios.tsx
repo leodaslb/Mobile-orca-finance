@@ -15,6 +15,7 @@ import { saveExportFile } from '@/services/export-file.service';
 import { useAppSession } from '@/contexts/AppSessionContext';
 import { localDate, calendarPeriod } from '@/utils/date';
 import { AppCard } from '@/components/common/AppCard';
+import { Destination } from '@/components/common/FinanceScreen';
 import { generateFinancialExport, getReportData, type ReportWindowMonths } from '@/services/report.service';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 import { formatCurrency } from '@/utils/currency';
@@ -140,6 +141,10 @@ function ReportsContent() {
         <IconChevronRight size={21} color={colors.textSecondary} />
       </Pressable>
       </>}
+      <Destination title="Métricas financeiras" caption="Poupança e saldo médio diário" href={{ pathname: '/relatorios/analises', params: { mode: 'metrics' } }} />
+      <Destination title="Tendências de gastos" caption="Mês atual e média mensal do trimestre anterior" href={{ pathname: '/relatorios/analises', params: { mode: 'trends' } }} />
+      <Destination title="Fluxo de caixa futuro" caption="Próximos 30 dias e fim do mês" href={{ pathname: '/relatorios/analises', params: { mode: 'cash' } }} />
+      <Destination title="Realização de metas" caption="Histórico de 6 ou 12 meses" href={{ pathname: '/relatorios/analises', params: { mode: 'goals' } }} />
     </ScrollView>
 
     <Modal visible={exportOpen} transparent animationType="slide"

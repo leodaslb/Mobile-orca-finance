@@ -40,12 +40,13 @@ export async function saveFreeSpendingAllowance(limitCents: number, periodKey = 
   return apiRequest<Quota>(profilePath(`free-spending-quota/${year}/${month}`), { method: 'PUT', body: { valorLimite: centsToDecimal(limitCents) } });
 }
 export type RulePeriod = 'DIARIO' | 'SEMANAL' | 'MENSAL' | 'ANUAL';
-export type RuleChannel = 'PUSH' | 'EMAIL';
-export interface SpendingRule { id: string; perfilId: string; tipo: 'LIMITE_DIARIO' | 'LIMITE_CATEGORIA' | 'PERCENTUAL_RENDA'; periodo: RulePeriod; categoriaId: string | null; ativa: boolean; valorLimite: string | null; valorConsumido: string; percentualConsumido: string | null; limiteAtingido: boolean; alertaAtivo: boolean; canais: RuleChannel[]; inicio: string; fimExclusivo: string }
-export interface SpendingRuleInput { tipo: 'LIMITE_DIARIO' | 'LIMITE_CATEGORIA'; categoriaId: string | null; limitCents: number; periodo: RulePeriod; canais: RuleChannel[]; ativa: boolean }
+export type RuleChannel = 'PUSH';
+export interface SpendingRule { id: string; perfilId: string; tipo: 'LIMITE_DIARIO' | 'LIMITE_CATEGORIA' | 'PERCENTUAL_RENDA'; periodo: RulePeriod; categoriaId: string | null; ativa: boolean; valorLimite: string | null; percentualLimite: number | null; baseCalculo: 'RENDA_EFETIVADA' | 'RENDA_PLANEJADA' | null; avaliacaoAtual?: { violada: boolean; valorAtual: string; limiteCalculado: string | null }; valorConsumido: string; percentualConsumido: string | null; limiteAtingido: boolean; alertaAtivo: boolean; canais: string[]; inicio: string; fimExclusivo: string }
+export interface SpendingRuleInput { tipo: SpendingRule['tipo']; categoriaId: string | null; limitCents: number; percentualLimite?: number; baseCalculo?: SpendingRule['baseCalculo']; periodo: RulePeriod; canais: RuleChannel[]; ativa: boolean }
 export function getSpendingRules() { return apiRequest<SpendingRule[]>(profilePath('spending-rules')); }
 export function saveSpendingRule(input: SpendingRuleInput, id?: string) {
   return apiRequest<SpendingRule>(profilePath(`spending-rules${id ? `/${encodeURIComponent(id)}` : ''}`), { method: id ? 'PATCH' : 'POST',
-    body: { tipo: input.tipo, categoriaId: input.tipo === 'LIMITE_DIARIO' ? null : input.categoriaId, valorLimite: centsToDecimal(input.limitCents),
-      periodo: input.tipo === 'LIMITE_DIARIO' ? 'DIARIO' : input.periodo, canais: input.canais, ativa: input.ativa } });
+    body: { tipo: input.tipo, categoriaId: input.tipo === 'LIMITE_DIARIO' ? null : input.categoriaId, valorLimite: input.tipo === 'PERCENTUAL_RENDA' ? null : centsToDecimal(input.limitCents),
+      percentualLimite: input.tipo === 'PERCENTUAL_RENDA' ? input.percentualLimite : null, baseCalculo: input.tipo === 'PERCENTUAL_RENDA' ? input.baseCalculo : null,
+      periodo: input.tipo === 'LIMITE_DIARIO' ? 'DIARIO' : input.periodo, canais: input.canais.filter(channel => channel === 'PUSH'), ativa: input.ativa } });
 }

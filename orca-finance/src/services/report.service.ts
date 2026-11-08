@@ -2,7 +2,7 @@ import { apiRequest, ApiError, profilePath } from '@/services/api-client';
 import { decimalToCents } from '@/utils/currency';
 import { calendarPeriod, localDate } from '@/utils/date';
 export type ReportWindowMonths = 1 | 3 | 6;
-interface ExpenseReport { periodo: { startDate: string; endDate: string }; totalGasto: string; categorias: { categoriaId: string | null; nome: string; valor: string; percentualDoTotal: string }[] }
+export interface ExpenseReport { periodo: { startDate: string; endDate: string }; totalGasto: string; categorias: { categoriaId: string | null; nome: string; valor: string; percentualDoTotal: string }[] }
 export async function getReportData(endMonth = localDate().slice(0, 7), windowMonths: ReportWindowMonths = 1) {
   const { startDate, endDate } = calendarPeriod(endMonth, windowMonths);
   const row = await apiRequest<ExpenseReport>(`${profilePath('reports/expenses')}?${new URLSearchParams({ startDate, endDate })}`);

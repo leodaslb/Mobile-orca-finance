@@ -5,7 +5,10 @@ import { errorMessage, getApiSession, SessionChangedError } from '@/services/api
 
 // Reutilizado na lista, detalhe, formulário e dashboard; não mantém cache entre perfis.
 export function useProfileResource<T>(load: () => Promise<T>) {
-  const { account, activeProfileId } = useAppSession();
+  'use no memo';
+  // O store HTTP é mutável e externo ao React. Preserva getApiSession e os deps explícitos,
+  // inclusive foregroundRevision, que o compilador removia do callback no bundle nativo.
+  const { account, activeProfileId, foregroundRevision } = useAppSession();
   const key = `${account?.id ?? ''}:${activeProfileId ?? ''}:${getApiSession().revision}`;
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ key: string; loader?: () => Promise<T>; data?: T; error?: string; loading: boolean; refreshing?: boolean }>({ key: '', loading: true });
@@ -19,7 +22,8 @@ export function useProfileResource<T>(load: () => Promise<T>) {
       ? { ...previous, error: undefined, loading: false, refreshing: !!activeProfileId }
       : { key, loader: load, loading: !!activeProfileId });
     if (activeProfileId) {
-      load().then(data => {
+      // Unifica falhas síncronas de montagem da consulta e rejeições HTTP.
+      Promise.resolve().then(load).then(data => {
         if (mounted && request === generation.current && revision === refreshVersion.current) setResult({ key, loader: load, data, loading: false });
       }).catch(error => {
         if (mounted && request === generation.current && revision === refreshVersion.current && !(error instanceof SessionChangedError)) {
@@ -29,7 +33,7 @@ export function useProfileResource<T>(load: () => Promise<T>) {
       });
     }
     return () => { mounted = false; generation.current += 1; };
-  }, [key, activeProfileId, load, revision]));
+  }, [key, activeProfileId, load, revision, foregroundRevision]));
   // A versão participa da requisição e invalida a resposta anterior antes do render.
   // Também mantém a dependência explícita dentro do callback compilado pelo React.
   const reload = useCallback(() => { refreshVersion.current += 1; setRevision(value => value + 1); }, []);

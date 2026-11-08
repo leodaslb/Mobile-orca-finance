@@ -1,15 +1,18 @@
 import { IconArrowLeft, IconChevronRight, IconShieldLock } from '@tabler/icons-react-native';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppCard } from '@/components/common/AppCard';
 import { useAppSession } from '@/contexts/AppSessionContext';
+import { Destination, Notice } from '@/components/common/FinanceScreen';
+import { useProfileMutation } from '@/hooks/useProfileMutation';
 import { colors, fontFamily, fontSize, spacing } from '@/theme';
 
 export default function SettingsHub() {
   const router = useRouter();
-  const { account, profiles, activeProfileId, setActiveProfile, signOut } = useAppSession();
+  const { account, profiles, activeProfileId, signOut } = useAppSession();
+  const mutation = useProfileMutation();
   return <SafeAreaView style={styles.screen} edges={['top']}>
     <ScrollView contentContainerStyle={styles.content}>
     <View style={styles.header}>
@@ -21,14 +24,11 @@ export default function SettingsHub() {
     </View>
     <Text style={styles.name}>{account?.name}</Text>
     <Text style={styles.email}>{account?.email}</Text>
-    <Text style={styles.cardTitle}>Perfil financeiro</Text>
-    {!profiles.length && <Text style={styles.email}>Nenhum perfil disponível. Entre novamente para atualizar.</Text>}
-    {profiles.map(profile => <Pressable key={profile.id} accessibilityRole="radio"
-      accessibilityState={{ selected: profile.id === activeProfileId }}
-      onPress={() => { setActiveProfile(profile.id); router.replace('/(tabs)'); }}>
-      <AppCard style={styles.card}><Text style={styles.cardTitle}>{profile.nome} · {profile.moedaBase}</Text>
-        <Text style={styles.signOutText}>{profile.id === activeProfileId ? 'Ativo' : 'Selecionar'}</Text></AppCard>
-    </Pressable>)}
+    <Destination title="Trocar perfil" caption={profiles.find(profile => profile.id === activeProfileId)?.nome ?? 'Escolha seu espaço financeiro'} href="/selecionar-perfil" />
+    <Destination title="Gerenciar perfis" caption="Criar e renomear perfis financeiros" href="/configuracoes/perfis" />
+    <Destination title="Notificações" caption="Registrar ou desativar este aparelho" href="/configuracoes/notificacoes" />
+    <Text style={styles.serverHint}>Para mudar o endereço do servidor, saia da conta e toque no ícone de engrenagem no rodapé da tela de entrada.</Text>
+    {activeProfileId && <Destination title="Automações de classificação" href="/configuracoes/automacoes" />}
     <Pressable accessibilityRole="button" onPress={() => router.push('/seguranca')}>
       <AppCard style={styles.card}>
         <IconShieldLock size={25} color={colors.primary} />
@@ -37,7 +37,8 @@ export default function SettingsHub() {
       </AppCard>
     </Pressable>
     {activeProfileId && <Pressable accessibilityRole="button" onPress={() => router.push('/recorrencias')}><AppCard style={styles.card}><Text style={styles.cardTitle}>Recorrências e lembretes</Text><IconChevronRight size={19} color={colors.textSecondary} /></AppCard></Pressable>}
-    <Pressable accessibilityRole="button" style={styles.signOut} onPress={signOut}>
+    {!!mutation.error && <Notice>{mutation.error}</Notice>}
+    <Pressable accessibilityRole="button" disabled={mutation.busy} style={styles.signOut} onPress={() => mutation.run(async () => { const result = await signOut(); if (!result.pushDeactivated) Alert.alert('Sessão encerrada', 'Não foi possível confirmar a desativação das notificações no servidor. Você pode desativar a permissão nas configurações do aparelho.'); }, () => {})}>
       <Text style={styles.signOutText}>Sair da conta</Text>
     </Pressable>
     </ScrollView>
@@ -47,6 +48,7 @@ export default function SettingsHub() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 30 },
+  serverHint: { marginVertical: spacing.md, fontFamily: fontFamily.regular, fontSize: fontSize.caption, color: colors.textSecondary },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 18 },
   headerSpacer: { width: 24 },
   title: { fontFamily: fontFamily.bold, fontSize: fontSize.title, color: colors.textPrimary },

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "898568652955",
+    "project_id": "orca-finance-80189",
+    "storage_bucket": "orca-finance-80189.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:898568652955:android:72835bf0c110fb0351de3e",
+        "android_client_info": {
+          "package_name": "com.leodaslb.orcafinance"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTDzCxRxmabO-ISPml1hUzgUvN-IktiIA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -81,6 +81,7 @@ describe('Bootstrap NestJS + Fastify', () => {
       method: 'GET', url: '/profiles', headers: { origin: 'http://localhost:8081' },
     });
     expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ statusCode: 401, code: 'UNAUTHENTICATED', message: 'Unauthorized', details: [] });
     expect(response.headers['access-control-allow-origin']).toBe('*');
   });
 
@@ -99,6 +100,8 @@ describe('Bootstrap NestJS + Fastify', () => {
         method: 'POST', url: '/validation-probe', payload,
       });
       expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ statusCode: 400, code: 'INVALID_INPUT', message: 'Dados inválidos.' });
+      expect(response.json().details.length).toBeGreaterThan(0);
     },
   );
 });

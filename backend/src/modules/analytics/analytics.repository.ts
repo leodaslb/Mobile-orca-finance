@@ -6,6 +6,22 @@ import { DateRange } from '../budgets/budgets.repository';
 export class AnalyticsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  effectiveMovements(perfilId: string, range: DateRange) {
+    return this.prisma.transacao.findMany({ where: { perfilId, status: 'EFETIVADA', dataHora: { gte: range.start, lt: range.end } },
+      select: { tipo: true, valor: true, dataHora: true } });
+  }
+
+  openingTotals(perfilId: string, before: Date) {
+    return this.prisma.transacao.groupBy({ by: ['tipo'], where: { perfilId, status: 'EFETIVADA', dataHora: { lt: before } }, _sum: { valor: true } });
+  }
+
+  trendCategories() { return this.prisma.categoria.findMany({ select: { id: true, nome: true }, orderBy: { id: 'asc' } }); }
+
+  categoryHistory(perfilId: string, now: Date) {
+    return this.prisma.transacao.findMany({ where: { perfilId, tipo: 'DESPESA', status: 'EFETIVADA', dataHora: { lte: now },
+      categoriaId: { not: null }, categoria: { ativa: true } }, select: { descricao: true, categoria: { select: { id: true, nome: true } } } });
+  }
+
   expensesByCategory(perfilId: string, range: DateRange) {
     return this.prisma.transacao.groupBy({ by: ['categoriaId'],
       where: { perfilId, tipo: 'DESPESA', status: 'EFETIVADA', dataHora: { gte: range.start, lt: range.end } }, _sum: { valor: true } });

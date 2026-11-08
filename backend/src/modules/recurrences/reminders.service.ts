@@ -10,7 +10,7 @@ export class RemindersService {
   constructor(private readonly reminders: RemindersRepository, private readonly recurrences: RecurrencesRepository, private readonly profiles: ProfilesService) {}
   private present(item: LembreteVencimento) {
     return { id: item.id, perfilId: item.perfilId, transacaoId: item.transacaoId, recorrenciaId: item.recorrenciaId,
-      notificarEm: item.notificarEm.toISOString(), ativo: item.ativo };
+      notificarEm: item.notificarEm.toISOString(), ativo: item.ativo, createdAt: item.createdAt.toISOString(), updatedAt: item.updatedAt.toISOString() };
   }
   private async validate(profile: string, transaction: string | null, recurrence: string | null, tx: Prisma.TransactionClient) {
     if (!transaction && !recurrence) throw new BadRequestException('Informe transacaoId ou recorrenciaId.');

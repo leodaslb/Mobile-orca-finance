@@ -10,11 +10,16 @@ import { TransactionsService } from './transactions.service';
 import { ReceiptsController } from './receipts.controller';
 import { ReceiptsService } from './receipts.service';
 import { CloudinaryStorageService } from './cloudinary-storage.service';
+import { TransactionAuditsController } from './transaction-audits.controller';
+import { TransactionAuditsRepository } from './transaction-audits.repository';
+import { TransactionAuditsService } from './transaction-audits.service';
+import { AutomationRulesModule } from '../automation-rules/automation-rules.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, ProfilesModule, CategoriesModule, TagsModule],
-  controllers: [TransactionsController, ReceiptsController],
-  providers: [TransactionsRepository, TransactionsService, ReceiptsService, CloudinaryStorageService],
+  imports: [PrismaModule, AuthModule, ProfilesModule, CategoriesModule, TagsModule, AutomationRulesModule],
+  controllers: [TransactionsController, ReceiptsController, TransactionAuditsController],
+  providers: [TransactionsRepository, TransactionsService, ReceiptsService, CloudinaryStorageService,
+    TransactionAuditsRepository, TransactionAuditsService],
   exports: [TransactionsService],
 })
 export class TransactionsModule {}

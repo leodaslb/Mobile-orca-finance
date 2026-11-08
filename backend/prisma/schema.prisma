@@ -123,44 +123,76 @@ enum TipoConteudo {
 }
 
 model Usuario {
-  id                 String              @id(map: "pk_usuario") @default(uuid()) @db.Uuid
-  nome               String              @db.Text
-  email              String              @db.Text
-  senhaHash          String              @map("senha_hash") @db.Text
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  perfis             PerfilFinanceiro[]
-  aplicativosGatilho AplicativoGatilho[]
-  leituras           LeituraConteudo[]
+  id                        String                     @id(map: "pk_usuario") @default(uuid()) @db.Uuid
+  nome                      String                     @db.Text
+  email                     String                     @db.Text
+  senhaHash                 String                     @map("senha_hash") @db.Text
+  createdAt                 DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  perfis                    PerfilFinanceiro[]
+  aplicativosGatilho        AplicativoGatilho[]
+  leituras                  LeituraConteudo[]
+  dispositivosPush          DispositivoPush[]
+  reservasLembreteTransacao ReservaLembreteTransacao[]
 
   @@unique([email], map: "uq_usuario_email")
   @@map("usuario")
 }
 
+model DispositivoPush {
+  id         String   @id(map: "pk_dispositivo_push") @default(uuid()) @db.Uuid
+  usuarioId  String   @map("usuario_id") @db.Uuid
+  token      String   @db.Text
+  plataforma String   @db.Text
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_dispositivo_push_usuario")
+
+  @@index([usuarioId], map: "idx_dispositivo_push_usuario")
+  @@map("dispositivo_push")
+}
+
+model ReservaLembreteTransacao {
+  id          String           @id(map: "pk_reserva_lembrete_transacao") @default(uuid()) @db.Uuid
+  usuarioId   String           @map("usuario_id") @db.Uuid
+  perfilId    String           @map("perfil_id") @db.Uuid
+  chaveEvento String           @map("chave_evento") @db.Text
+  diaEnvio    DateTime         @map("dia_envio") @db.Date
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  usuario     Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_reserva_lembrete_usuario")
+  perfil      PerfilFinanceiro @relation(fields: [perfilId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_reserva_lembrete_perfil")
+
+  @@unique([usuarioId, chaveEvento], map: "uq_reserva_lembrete_usuario_evento")
+  @@index([usuarioId, diaEnvio], map: "idx_reserva_lembrete_usuario_dia")
+  @@map("reserva_lembrete_transacao")
+}
+
 model PerfilFinanceiro {
-  id                   String               @id(map: "pk_perfil_financeiro") @default(uuid()) @db.Uuid
-  usuarioId            String               @map("usuario_id") @db.Uuid
-  nome                 String               @db.Text
-  moedaBase            String               @default("BRL") @map("moeda_base") @db.Char(3)
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  usuario              Usuario              @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_perfil_financeiro_usuario")
-  subcategorias        Subcategoria[]
-  tags                 Tag[]
-  recorrencias         Recorrencia[]
-  transacoes           Transacao[]
-  auditorias           AuditoriaTransacao[]
-  lembretes            LembreteVencimento[]
-  regrasAutomacao      RegraAutomacao[]
-  orcamentos           Orcamento[]
-  cotasGastosLivres    CotaGastoLivre[]
-  regrasGasto          RegraGasto[]
-  metas                Meta[]
-  itensReflexao        ItemReflexao[]
-  diariosConsumo       DiarioConsumo[]
-  desafiosEconomia     DesafioEconomia[]
-  perfilConquistas     PerfilConquista[]
-  planosGrandesCompras PlanoGrandeCompra[]
+  id                        String                     @id(map: "pk_perfil_financeiro") @default(uuid()) @db.Uuid
+  usuarioId                 String                     @map("usuario_id") @db.Uuid
+  nome                      String                     @db.Text
+  moedaBase                 String                     @default("BRL") @map("moeda_base") @db.Char(3)
+  createdAt                 DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  usuario                   Usuario                    @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_perfil_financeiro_usuario")
+  subcategorias             Subcategoria[]
+  tags                      Tag[]
+  recorrencias              Recorrencia[]
+  transacoes                Transacao[]
+  auditorias                AuditoriaTransacao[]
+  lembretes                 LembreteVencimento[]
+  regrasAutomacao           RegraAutomacao[]
+  orcamentos                Orcamento[]
+  cotasGastosLivres         CotaGastoLivre[]
+  regrasGasto               RegraGasto[]
+  metas                     Meta[]
+  itensReflexao             ItemReflexao[]
+  diariosConsumo            DiarioConsumo[]
+  desafiosEconomia          DesafioEconomia[]
+  perfilConquistas          PerfilConquista[]
+  planosGrandesCompras      PlanoGrandeCompra[]
+  reservasLembreteTransacao ReservaLembreteTransacao[]
 
   @@index([usuarioId], map: "idx_perfil_financeiro_usuario")
   @@map("perfil_financeiro")
@@ -179,6 +211,7 @@ model Categoria {
   regrasAutomacao     RegraAutomacao[]
   orcamentoCategorias OrcamentoCategoria[]
   regrasGasto         RegraGasto[]
+  desafiosEconomia    DesafioEconomia[]
 
   @@map("categoria")
 }
@@ -422,22 +455,35 @@ model CotaGastoLivre {
 }
 
 model RegraGasto {
-  id               String            @id(map: "pk_regra_gasto") @default(uuid()) @db.Uuid
-  perfilId         String            @map("perfil_id") @db.Uuid
+  id               String                  @id(map: "pk_regra_gasto") @default(uuid()) @db.Uuid
+  perfilId         String                  @map("perfil_id") @db.Uuid
   tipo             TipoRegraGasto
-  categoriaId      String?           @map("categoria_id") @db.Uuid
-  valorLimite      Decimal?          @map("valor_limite") @db.Decimal(19, 2)
-  percentualLimite Decimal?          @map("percentual_limite") @db.Decimal(7, 4)
+  categoriaId      String?                 @map("categoria_id") @db.Uuid
+  valorLimite      Decimal?                @map("valor_limite") @db.Decimal(19, 2)
+  percentualLimite Decimal?                @map("percentual_limite") @db.Decimal(7, 4)
   periodo          PeriodoRegra
-  baseCalculo      BaseCalculo?      @map("base_calculo")
-  ativa            Boolean           @default(true)
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  perfil           PerfilFinanceiro  @relation(fields: [perfilId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_regra_gasto_perfil")
-  categoria        Categoria?        @relation(fields: [categoriaId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_regra_gasto_categoria")
+  baseCalculo      BaseCalculo?            @map("base_calculo")
+  ativa            Boolean                 @default(true)
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  perfil           PerfilFinanceiro        @relation(fields: [perfilId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_regra_gasto_perfil")
+  categoria        Categoria?              @relation(fields: [categoriaId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_regra_gasto_categoria")
   canais           RegraGastoCanal[]
+  estadoAlerta     EstadoAlertaRegraGasto?
 
   @@map("regra_gasto")
+}
+
+// Estado técnico de deduplicação/rearme; os valores financeiros continuam derivados.
+model EstadoAlertaRegraGasto {
+  regraGastoId  String     @id(map: "pk_estado_alerta_regra_gasto") @map("regra_gasto_id") @db.Uuid
+  inicioPeriodo DateTime   @map("inicio_periodo") @db.Timestamptz(3)
+  violada       Boolean    @default(false)
+  ciclo         Int        @default(0)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  regraGasto    RegraGasto @relation(fields: [regraGastoId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_estado_alerta_regra")
+
+  @@map("estado_alerta_regra_gasto")
 }
 
 model RegraGastoCanal {
@@ -514,16 +560,22 @@ model DiarioConsumo {
 }
 
 model DesafioEconomia {
-  id         String           @id(map: "pk_desafio_economia") @default(uuid()) @db.Uuid
-  perfilId   String           @map("perfil_id") @db.Uuid
-  nome       String?          @db.Text
-  valorAlvo  Decimal          @map("valor_alvo") @db.Decimal(19, 2)
-  dataInicio DateTime         @map("data_inicio") @db.Date
-  dataFim    DateTime         @map("data_fim") @db.Date
-  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt  DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  perfil     PerfilFinanceiro @relation(fields: [perfilId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_desafio_economia_perfil")
+  id                String           @id(map: "pk_desafio_economia") @default(uuid()) @db.Uuid
+  perfilId          String           @map("perfil_id") @db.Uuid
+  nome              String?          @db.Text
+  valorAlvo         Decimal?         @map("valor_alvo") @db.Decimal(19, 2)
+  categoriaId       String?          @map("categoria_id") @db.Uuid
+  valorReferencia   Decimal?         @map("valor_referencia") @db.Decimal(19, 2)
+  valorMetaPeriodo  Decimal?         @map("valor_meta_periodo") @db.Decimal(19, 2)
+  percentualReducao Decimal?         @map("percentual_reducao") @db.Decimal(7, 4)
+  dataInicio        DateTime         @map("data_inicio") @db.Date
+  dataFim           DateTime         @map("data_fim") @db.Date
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  perfil            PerfilFinanceiro @relation(fields: [perfilId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_desafio_economia_perfil")
+  categoria         Categoria?       @relation(fields: [categoriaId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_desafio_economia_categoria")
 
+  @@index([perfilId, categoriaId, dataInicio, dataFim], map: "idx_desafio_economia_perfil_categoria_periodo")
   @@map("desafio_economia")
 }
 

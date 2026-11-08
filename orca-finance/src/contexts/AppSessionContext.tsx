@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
 import { signIn, signUp, type Account, type ApiProfile, type AuthSession } from '@/services/auth.service';
-import { getApiSession, handleUnauthorized, setApiSession, SessionChangedError } from '@/services/api-client';
+import { apiRequest, getApiSession, handleUnauthorized, setApiSession, SessionChangedError } from '@/services/api-client';
+import { deactivatePush } from '@/services/push.service';
 import {
   checkLocalPin, clearLocalLock, configureLocalPin, getLocalSecuritySettings,
   hasLocalLock, setLocalBiometricEnabled, setPreferredUnlockMethod,
@@ -18,8 +19,10 @@ interface AppSessionValue {
   security: LocalSecuritySettings;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<{ pushDeactivated: boolean }>;
+  foregroundRevision: number;
   setActiveProfile: (profileId: string) => void;
+  refreshProfiles: () => Promise<void>;
   setPin: (pin: string) => Promise<void>;
   setBiometric: (enabled: boolean) => Promise<void>;
   setPreferredMethod: (method: UnlockMethod) => Promise<void>;
@@ -45,6 +48,7 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
   const [securityReady, setSecurityReady] = useState(false);
   const [securityError, setSecurityError] = useState('');
   const [securityAttempt, setSecurityAttempt] = useState(0);
+  const [foregroundRevision, setForegroundRevision] = useState(0);
   useEffect(() => {
     let mounted = true;
     setSecurityError('');
@@ -67,24 +71,44 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
     try {
       const result = await operation();
       if (version !== authenticationVersion.current) throw new SessionChangedError();
-      setApiSession(result.accessToken, result.activeProfileId);
-      setAccount(result.account); setProfiles(result.profiles); setActiveProfileId(result.activeProfileId); setLocked(false);
+      // A entrada no app exige escolha explícita, inclusive quando há um único perfil.
+      setApiSession(result.accessToken, null);
+      setAccount(result.account); setProfiles(result.profiles); setActiveProfileId(null); setLocked(false);
     } finally { authenticationBusy.current = false; }
   }
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'background' && account && hasLocalLock()) setLocked(true);
+      if (state === 'active' && account) setForegroundRevision(value => value + 1);
     });
     return () => subscription.remove();
   }, [account]);
+
+  const refreshProfiles = useCallback(async () => {
+    const revision = getApiSession().revision;
+    const rows = await apiRequest<ApiProfile[]>('/profiles');
+    if (revision !== getApiSession().revision) throw new SessionChangedError();
+    setProfiles(rows);
+    setAccount(previous => previous ? { ...previous, profileIds: rows.map(p => p.id) } : null);
+    const selected = rows.find(p => p.id === getApiSession().profileId)?.id ?? null;
+    if (selected !== getApiSession().profileId) { setApiSession(getApiSession().token, selected); setActiveProfileId(selected); }
+  }, []);
 
   const value = useMemo<AppSessionValue>(() => ({
     account, profiles, activeProfileId, locked, security, securityReady, securityError,
     retryLocalSecurity() { setSecurityAttempt(value => value + 1); },
     signIn(email, password) { return authenticate(() => signIn(email, password)); },
     signUp(name, email, password) { return authenticate(() => signUp(name, email, password)); },
-    signOut: clearSession,
+    foregroundRevision,
+    async signOut() {
+      const revision = getApiSession().revision; let pushDeactivated = true;
+      try { if (account) await deactivatePush(account.id); }
+      catch (e) { if (e instanceof SessionChangedError) throw e; pushDeactivated = false; }
+      if (revision !== getApiSession().revision) throw new SessionChangedError();
+      clearSession(); return { pushDeactivated };
+    },
+    refreshProfiles,
     setActiveProfile(profileId) {
       if (!account) throw new Error('Entre na conta primeiro.');
       if (!profiles.some(profile => profile.id === profileId)) throw new Error('Perfil não pertence à conta.');
@@ -111,7 +135,7 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
       setLocked(false);
     },
     lockNow() { if (hasLocalLock()) setLocked(true); },
-  }), [account, profiles, activeProfileId, locked, security, securityReady, securityError]);
+  }), [account, profiles, activeProfileId, locked, security, securityReady, securityError, foregroundRevision, refreshProfiles]);
 
   return <AppSessionContext.Provider value={value}>{children}</AppSessionContext.Provider>;
 }

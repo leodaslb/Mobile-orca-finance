@@ -1,5 +1,5 @@
-import { IconEye, IconX } from '@tabler/icons-react-native';
-import { Redirect } from 'expo-router';
+import { IconEye, IconSettings, IconX } from '@tabler/icons-react-native';
+import { Redirect, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardLayout } from '@/components/common/KeyboardLayout';
@@ -11,6 +11,7 @@ import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 type SheetMode = 'login' | 'signup' | null;
 
 export default function Index() {
+  const router = useRouter();
   const { account, activeProfileId, signIn, signUp } = useAppSession();
   const [mode, setMode] = useState<SheetMode>(null);
   const [name, setName] = useState('');
@@ -22,7 +23,7 @@ export default function Index() {
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
 
-  if (account) return <Redirect href={activeProfileId ? "/(tabs)" : "/configuracoes"} />;
+  if (account) return <Redirect href={activeProfileId ? "/(tabs)" : "/selecionar-perfil"} />;
 
   function openSheet(next: Exclude<SheetMode, null>) {
     setMode(next);
@@ -63,7 +64,12 @@ export default function Index() {
         <Text style={styles.secondaryText}>Criar conta</Text>
       </Pressable>
     </View>
-    <Text style={styles.footer}>Seus dados financeiros em um só lugar.</Text>
+    <View style={styles.footerRow}>
+      <Text style={styles.footer}>Seus dados financeiros em um só lugar.</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Configurar servidor" accessibilityHint="Alterar o endereço de conexão do aplicativo" style={({ pressed }) => [styles.serverButton, pressed && { opacity: 0.55 }]} onPress={() => router.push('/servidor')}>
+        <IconSettings size={18} strokeWidth={1.5} color={colors.textSecondary} />
+      </Pressable>
+    </View>
 
     <Modal visible={mode !== null} transparent animationType="slide" onRequestClose={() => { if (!busy) setMode(null); }}>
       <KeyboardLayout style={styles.overlay}>
@@ -123,11 +129,13 @@ const styles = StyleSheet.create({
   headline: { marginTop: 72, fontFamily: fontFamily.bold, fontSize: 34, lineHeight: 43, textAlign: 'center', color: colors.textPrimary },
   description: { marginTop: 22, fontFamily: fontFamily.regular, fontSize: 16, lineHeight: 27, textAlign: 'center', color: colors.textSecondary },
   actions: { gap: spacing.md },
+  serverButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   primaryButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: radius.input, backgroundColor: colors.primary },
   primaryText: { fontFamily: fontFamily.bold, fontSize: fontSize.title, color: colors.surface },
   secondaryButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: radius.input, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   secondaryText: { fontFamily: fontFamily.bold, fontSize: fontSize.title, color: colors.primary },
-  footer: { marginTop: 70, marginBottom: 28, textAlign: 'center', fontFamily: fontFamily.regular, fontSize: fontSize.body, color: colors.textSecondary },
+  footerRow: { marginTop: 70, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  footer: { flex: 1, textAlign: 'center', fontFamily: fontFamily.regular, fontSize: fontSize.body, color: colors.textSecondary },
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(16,32,46,0.45)' },
   dismissArea: { flex: 1 },
   sheet: { maxHeight: '90%', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet, backgroundColor: colors.surface },

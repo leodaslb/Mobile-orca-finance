@@ -27,12 +27,8 @@ skills-lock.json
 *.apk
 *.aab
 
-# Inclui copias locais de ambiente, preservando o exemplo publico
-.env*
-!.env.example
 # Ambientes locais: manter exemplos, nunca credenciais
-.env
-.env.*
+.env*
 !.env.example
 
 # Expo / React Native
@@ -60,7 +56,26 @@ Thumbs.db
 *.pem
 *.key
 *.mobileprovision
-node_modules/
+
+# Credenciais privadas EAS/Firebase (google-services.json e configuracao cliente)
+credentials.json
+*firebase-adminsdk*.json
+*service-account*.json
+*service_account*.json
+*.keystore
+*.pfx
+
+# Backups, arquivos temporarios e caches locais
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
+*~
+**/.cache/
+.eslintcache
+*.hprof
+
 .agents
 .codex
 .AGENTS.md

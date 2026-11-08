@@ -1,17 +1,26 @@
-import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsEnum, IsIn, IsString, IsUUID, Matches, ValidateIf } from 'class-validator';
-import { CanalNotificacao, PeriodoRegra, TipoRegraGasto } from '../../../generated/prisma/client';
+import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsEnum, IsNumber, IsString, IsUUID, Matches, Max, Min, ValidateIf } from 'class-validator';
+import { BaseCalculo, CanalNotificacao, PeriodoRegra, TipoRegraGasto } from '../../../generated/prisma/client';
 
 export class CreateSpendingRuleDto {
-  @IsIn([TipoRegraGasto.LIMITE_DIARIO, TipoRegraGasto.LIMITE_CATEGORIA])
+  @IsEnum(TipoRegraGasto)
   tipo!: TipoRegraGasto;
 
   @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsUUID()
   categoriaId?: string | null;
 
+  @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsString()
   @Matches(/^\d{1,17}(?:\.\d{1,2})?$/)
-  valorLimite!: string;
+  valorLimite?: string | null;
+
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) @Max(999.9999)
+  percentualLimite?: number | null;
+
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsEnum(BaseCalculo)
+  baseCalculo?: BaseCalculo | null;
 
   @IsEnum(PeriodoRegra)
   periodo!: PeriodoRegra;
@@ -29,17 +38,25 @@ export class CreateSpendingRuleDto {
 
 export class UpdateSpendingRuleDto {
   @ValidateIf((_, value) => value !== undefined)
-  @IsIn([TipoRegraGasto.LIMITE_DIARIO, TipoRegraGasto.LIMITE_CATEGORIA])
+  @IsEnum(TipoRegraGasto)
   tipo?: TipoRegraGasto;
 
   @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsUUID()
   categoriaId?: string | null;
 
-  @ValidateIf((_, value) => value !== undefined)
+  @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsString()
   @Matches(/^\d{1,17}(?:\.\d{1,2})?$/)
-  valorLimite?: string;
+  valorLimite?: string | null;
+
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) @Max(999.9999)
+  percentualLimite?: number | null;
+
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsEnum(BaseCalculo)
+  baseCalculo?: BaseCalculo | null;
 
   @ValidateIf((_, value) => value !== undefined)
   @IsEnum(PeriodoRegra)

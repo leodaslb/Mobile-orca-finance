@@ -6,6 +6,7 @@ import { IconArrowLeft, IconCalendar, IconClock, IconCreditCard, IconHash, IconN
 import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppCard } from '@/components/common/AppCard';
+import { Destination } from '@/components/common/FinanceScreen';
 import { TransactionDetailRow } from '@/components/domain/TransactionDetailRow';
 import { ReceiptUploadModal } from '@/components/domain/ReceiptUploadModal';
 import { getRemoteRecurrence, recurrenceConfiguration as mapRecurrenceConfiguration, updateRemoteRecurrence } from '@/services/recurrence.service';
@@ -115,6 +116,7 @@ export default function TransactionDetailScreen() {
               <Text style={styles.editText}>Editar configuração futura</Text>
             </Pressable>
           </AppCard>}
+          <Destination title="Ver histórico de alterações" href={{ pathname: '/transacao/historico', params: { transactionId: transaction.id } }} />
           <Pressable onPress={edit} accessibilityRole="button" style={styles.edit}>
             <Text style={styles.editText}>Editar transação</Text>
           </Pressable>

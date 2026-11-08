@@ -19,7 +19,8 @@
       },
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize",
-      "package": "com.leodaslb.orcafinance"
+      "package": "com.leodaslb.orcafinance",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -37,6 +38,8 @@
       ],
       "expo-font",
       "expo-secure-store",
+      "expo-notifications",
+      "expo-document-picker",
       [
         "expo-image-picker",
         {

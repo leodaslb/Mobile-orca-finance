@@ -21,6 +21,7 @@ function harness(extra = {}) {
     '@/components/common/CategoryIcon': { CategoryIcon: 'CategoryIcon' },
     '@/components/common/AppSwitch': { AppSwitch: 'AppSwitch' },
     '@/components/domain/ReceiptPicker': { ReceiptPicker: 'ReceiptPicker' },
+    '@/components/domain/CategorySuggestion': { CategorySuggestion: 'CategorySuggestion' },
     '@/components/domain/PurchaseReflectionModal': { PurchaseReflectionModal: 'PurchaseReflectionModal' },
     '@/components/domain/RecurrenceConfigurationModal': { RecurrenceConfigurationModal: 'RecurrenceConfigurationModal' },
     ...extra,

@@ -85,7 +85,7 @@ export function transactionPayload(input: CreateTransactionInput) {
     dataHora: localDateTimeToISO(input.date, input.time), descricao: input.description.trim(),
     anotacao: input.notes ?? null, categoriaId: input.categoryId, subcategoriaId: input.subcategoryId ?? null,
     metodoPagamento: input.paymentMethod ? paymentEnums[input.paymentMethod] : null,
-    essencialidade: essentialityEnums[input.essentiality ?? 'unclassified'], ehGastoLivre: input.freeSpending ?? false };
+    ...(input.essentiality != null && { essencialidade: essentialityEnums[input.essentiality] }), ehGastoLivre: input.freeSpending ?? false };
 }
 
 export class PartialTransactionWriteError extends ApiError {

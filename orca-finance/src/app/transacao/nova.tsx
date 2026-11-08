@@ -20,7 +20,7 @@ import { colors, fontFamily, fontSize, spacing, } from '@/theme';
 
 export default function NovaTransacaoScreen() {
   const router = useRouter();
-  const { editId, reflectionItemId } = useLocalSearchParams<{ editId?: string; reflectionItemId?: string }>();
+  const { editId, reflectionItemId, reminderCategoryId, referenceDate } = useLocalSearchParams<{ editId?: string; reflectionItemId?: string; reminderCategoryId?: string; referenceDate?: string }>();
   const { account, activeProfileId } = useAppSession();
   const [busy, setBusy] = useState(false); const sending = useRef(false);
   const [submitError, setSubmitError] = useState('');
@@ -79,6 +79,7 @@ export default function NovaTransacaoScreen() {
 
         {!data ? <AsyncState loading={loading} error={error} onRetry={reload} /> : <>
         {!!error && <AsyncState error={error} onRetry={reload} />}
+        {!!referenceDate && <Text style={{ paddingHorizontal: spacing.lg, color: colors.textSecondary, fontFamily: fontFamily.regular }}>Confira seus lançamentos de {referenceDate}{reminderCategoryId ? ` em ${data.catalog.categories.find(c => c.id === reminderCategoryId)?.name ?? 'uma categoria'}` : ''}. O lembrete não confirma que houve uma movimentação.</Text>}
         <TransactionForm
           key={`${account?.id}:${activeProfileId}:${editId ?? reflectionItemId ?? 'new'}`}
           {...data.catalog} initialValues={data.original} editing={!!editId} busy={busy} error={submitError}

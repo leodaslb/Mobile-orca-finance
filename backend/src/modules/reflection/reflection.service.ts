@@ -42,7 +42,8 @@ export class ReflectionService {
   private present(item: ItemReflexao) {
     const release = new Date(item.entradaEm.getTime() + item.duracaoHoras * 3600000);
     return { id: item.id, perfilId: item.perfilId, descricao: item.descricao, entradaEm: item.entradaEm.toISOString(),
-      duracaoHoras: item.duracaoHoras, liberaEm: release.toISOString(), liberado: this.clock.now() >= release };
+      duracaoHoras: item.duracaoHoras, liberaEm: release.toISOString(), liberado: this.clock.now() >= release,
+      createdAt: item.createdAt.toISOString(), updatedAt: item.updatedAt.toISOString() };
   }
   async create(user: string, profile: string, dto: CreateReflectionDto) {
     await this.profiles.assertOwnership(user, profile);

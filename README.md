@@ -15,7 +15,8 @@ Mobile-orca-finance/
 
 ## Sprint 1 — Backlog
 
-
+<details>
+<summary>Ver backlog da Sprint 1 (18 User Stories)</summary>
 
 | US | User Story | Prioridade |
 | --- | --- | --- |
@@ -37,6 +38,34 @@ Mobile-orca-finance/
 | US44 | Como usuário, quero reverter uma transação registrada por engano sem manter seu efeito nos cálculos, preservando a rastreabilidade da exclusão para corrigir meu histórico com segurança. | Alta |
 | US45 | Como usuário, quero definir uma cota mensal de gastos livres sem categorização para manter flexibilidade dentro do meu planejamento. | Média |
 | US60 | Como usuário, quero criar uma conta e me autenticar no aplicativo para acessar de forma segura meus perfis e dados financeiros. | Alta |
+
+</details>
+
+## Sprint 2 — Backlog
+
+A Sprint 2 amplia as funcionalidades de planejamento e análise financeira, incluindo novos tipos de orçamento, múltiplos perfis, importação de transações, simulações, automações, projeções, desafios e notificações push.
+
+| US | User Story | Prioridade |
+| --- | --- | --- |
+| US04 | Como usuário, quero consultar o histórico de alterações e exclusões de uma transação para compreender o que foi modificado ao longo do tempo. | Média |
+| US07 | Como usuário, quero criar orçamentos com períodos flexíveis e temporários, inclusive vinculados a eventos, para planejar gastos fora do ciclo mensal padrão. | Média |
+| US09 | Como usuário, quero distribuir a renda do período entre categorias em um orçamento zero para dar destino a todo o valor planejado. | Média |
+| US16 | Como usuário, quero receber lembretes push para registrar transações possivelmente esquecidas, com base no meu histórico de gastos ou em horários predefinidos, para reduzir omissões no controle financeiro. | Média |
+| US18 | Como usuário, quero manter e alternar entre perfis financeiros separados para administrar diferentes contextos de finanças. | Média |
+| US20 | Como usuário, quero criar regras explícitas de automação para classificar atributos das transações e reduzir tarefas repetitivas. | Média |
+| US21 | Como usuário, quero sincronizar meus dados financeiros entre dispositivos para acessar informações consistentes em diferentes aparelhos. | Média |
+| US25 | Como usuário, quero visualizar taxa de poupança e saldo médio diário para acompanhar meu desempenho financeiro. | Média |
+| US27 | Como usuário, quero simular o impacto de uma compra, inclusive parcelada, no orçamento atual e futuro para avaliar seu comprometimento antes de decidir. | Média |
+| US31 | Como usuário, quero calcular juros compostos e o valor futuro hipotético de um gasto não realizado para comparar cenários de investimento e consumo. | Média |
+| US32 | Como usuário, quero visualizar a projeção de entradas, saídas e saldo futuro para antecipar meu fluxo de caixa de curto prazo. | Média |
+| US35 | Como usuário, quero visualizar se meus gastos por categoria estão aumentando, diminuindo ou permanecendo estáveis ao longo do tempo para identificar mudanças de comportamento. | Média |
+| US42 | Como usuário, quero importar transações de CSV ou extrato em formato predefinido para evitar o registro manual de informações já existentes. | Média |
+| US48 | Como usuário, quero receber sugestões de categoria com base no meu histórico de descrições semelhantes para categorizar novas despesas com menos esforço. | Média |
+| US51 | Como usuário, quero criar um plano de economia para uma compra de alto valor com parcelas mensais compatíveis com meu orçamento para saber como alcançar esse objetivo. | Média |
+| US52 | Como usuário, quero criar regras de gastos baseadas em limites proporcionais e ser alertado quando elas forem violadas para controlar meu comportamento financeiro. | Média |
+| US54 | Como usuário, quero receber por notificação push um resumo semanal que destaque meus maiores gastos e o progresso em relação ao orçamento para acompanhar minha situação financeira regularmente. | Média |
+| US58 | Como usuário, quero visualizar a porcentagem de metas de economia cumpridas em um período histórico definido para avaliar minha consistência no alcance de objetivos. | Média |
+| US59 | Como usuário, quero participar de um desafio para reduzir gastos em uma categoria específica de despesas essenciais e receber sugestões de alternativas mais econômicas para melhorar meus hábitos de consumo. | Média |
 
 ## Principais tecnologias
 
@@ -105,7 +134,7 @@ npm run seed
 npm run start:dev
 ```
 
-A API escuta em `0.0.0.0`. A rota `http://localhost:3000/health` permite verificar o serviço HTTP; ela não verifica a conexão com o banco. Em banco já preparado, não é necessário repetir a preparação inicial.
+A API escuta em `0.0.0.0`. A rota [http://localhost:3000/health](http://localhost:3000/health) permite verificar o serviço HTTP; ela não verifica a conexão com o banco. Em banco já preparado, não é necessário repetir a preparação inicial.
 
 ### Frontend
 
@@ -120,6 +149,8 @@ Copy-Item .env.example .env
 
 Configure `EXPO_PUBLIC_API_URL` com a URL da API:
 
+Padrão atual no `.env.example` e nos perfis de build EAS: `http://10.146.213.200:3000` (IP do notebook na rede local).
+
 - Android Emulator: `http://10.0.2.2:3000`.
 - Celular físico: `http://<IP-do-computador-na-rede>:3000`, com celular e computador na mesma rede e a porta acessível.
 
@@ -127,4 +158,4 @@ Configure `EXPO_PUBLIC_API_URL` com a URL da API:
 npx expo start
 ```
 
-Abra o app pelo Expo Go compatível ou pressione `a` para usar o emulador Android. Reinicie o Expo após mudar a URL; em APK, a URL faz parte do build e exige uma nova geração do aplicativo.
+Abra o app pelo Expo Go compatível ou pressione `a` para usar o emulador Android. Reinicie o Expo após mudar a URL. O endereço padrão do APK faz parte do build; para atualizar esse padrão, gere outro APK. Na versão com **Configurar servidor**, também é possível informar outro endereço na tela de entrada sem novo build. Uma configuração salva no aparelho tem prioridade sobre o padrão; use **Usar endereço padrão do aplicativo** para removê-la.

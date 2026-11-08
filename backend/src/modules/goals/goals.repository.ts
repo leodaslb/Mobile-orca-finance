@@ -6,6 +6,11 @@ import { PrismaService } from '../../database/prisma.service';
 export class GoalsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  closedGoals(perfilId: string, start: Date, end: Date) {
+    return this.prisma.meta.findMany({ where: { perfilId, dataLimite: { gte: start, lt: end } },
+      select: { id: true, valorAlvo: true, dataLimite: true, aportes: { where: { dataHora: { lt: end } }, select: { valor: true, dataHora: true } } } });
+  }
+
   create(perfilId: string, data: Omit<Prisma.MetaUncheckedCreateInput, 'perfilId'>) {
     return this.prisma.meta.create({ data: { ...data, perfilId } });
   }

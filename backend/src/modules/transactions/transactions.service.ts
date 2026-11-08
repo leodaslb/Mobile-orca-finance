@@ -7,6 +7,7 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { TransactionQueryDto } from './dto/transaction-query.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { TransactionsRepository } from './transactions.repository';
+import { AutomationRulesService } from '../automation-rules/automation-rules.service';
 
 type ManualState = {
   tipo: TipoTransacao;
@@ -29,6 +30,7 @@ export class TransactionsService {
     private readonly profiles: ProfilesService,
     private readonly categories: CategoriesRepository,
     private readonly tags: TagsRepository,
+    private readonly automation: AutomationRulesService,
   ) {}
 
   private snapshot(item: Transacao): Prisma.InputJsonObject {
@@ -89,6 +91,16 @@ export class TransactionsService {
   }
 
   async create(userId: string, perfilId: string, dto: CreateTransactionDto, transaction?: Prisma.TransactionClient) {
+    return this.createWithOrigin(userId, perfilId, dto, false, transaction);
+  }
+
+  // RF61 → US42 → RN-IMP-01: defaults e categoria opcional exclusivos da importação.
+  async importRow(userId: string, perfilId: string, dto: Pick<CreateTransactionDto, 'tipo' | 'valor' | 'dataHora' | 'descricao' | 'categoriaId'>,
+    transaction: Prisma.TransactionClient) {
+    return this.createWithOrigin(userId, perfilId, { ...dto, essencialidade: 'NAO_CLASSIFICADA', ehGastoLivre: false, status: 'EFETIVADA' }, true, transaction);
+  }
+
+  private async createWithOrigin(userId: string, perfilId: string, dto: CreateTransactionDto, imported: boolean, transaction?: Prisma.TransactionClient) {
     await this.profiles.assertOwnership(userId, perfilId);
     const state: ManualState = {
       tipo: dto.tipo, valor: new Prisma.Decimal(dto.valor),
@@ -99,7 +111,10 @@ export class TransactionsService {
       essencialidade: dto.essencialidade ?? Essencialidade.NAO_CLASSIFICADA,
       ehGastoLivre: dto.ehGastoLivre ?? false, status: dto.status,
     };
-    await this.validateState(perfilId, state);
+    await this.validateState(perfilId, state, undefined, imported);
+    if (dto.essencialidade === undefined && state.tipo === 'DESPESA') {
+      state.essencialidade = await this.automation.resolve(perfilId, state.categoriaId, state.subcategoriaId) ?? state.essencialidade;
+    }
     const persist = async (tx: Prisma.TransactionClient) => {
       const created = await this.transactions.create(perfilId, state, tx);
       await this.transactions.createAudit({
@@ -218,7 +233,8 @@ export class TransactionsService {
         ehGastoLivre: dto.ehGastoLivre ?? current.ehGastoLivre,
         status: dto.status ?? current.status,
       };
-      await this.validateState(perfilId, state, current, current.recorrenciaId !== null);
+      // Registro já sem categoria (CSV/recorrência) continua editável para classificação posterior.
+      await this.validateState(perfilId, state, current, current.recorrenciaId !== null || (current.categoriaId === null && !current.ehGastoLivre));
       const updated = await this.transactions.updateByProfileAndId(perfilId, id, state, tx);
       if (!updated) throw new NotFoundException('Transação não encontrada.');
       await this.transactions.createAudit({

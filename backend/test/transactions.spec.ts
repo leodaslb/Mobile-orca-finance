@@ -5,6 +5,7 @@ import { ProfilesService } from '../src/modules/profiles/profiles.service';
 import { CreateTransactionDto } from '../src/modules/transactions/dto/create-transaction.dto';
 import { TransactionsRepository } from '../src/modules/transactions/transactions.repository';
 import { TransactionsService } from '../src/modules/transactions/transactions.service';
+import { AutomationRulesService } from '../src/modules/automation-rules/automation-rules.service';
 import { TagsRepository } from '../src/modules/tags/tags.repository';
 
 describe('TransactionsService', () => {
@@ -59,7 +60,8 @@ describe('TransactionsService', () => {
     } as unknown as TransactionsRepository;
     const profiles = { assertOwnership: jest.fn().mockResolvedValue({ id: profileId, usuarioId: userId }) } as unknown as ProfilesService;
     const categories = { findCategory, findSubcategory } as unknown as CategoriesRepository;
-    service = new TransactionsService(transactions, profiles, categories, {} as TagsRepository);
+    service = new TransactionsService(transactions, profiles, categories, {} as TagsRepository,
+      { resolve: jest.fn().mockResolvedValue(null) } as unknown as AutomationRulesService);
   });
 
   it('cria despesa válida com Decimal, perfil e defaults documentados', async () => {

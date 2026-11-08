@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AuthenticatedRequest } from '../auth/auth.types';
 import { GoalsService } from './goals.service';
 import { ContributionDto, CreateGoalDto, UpdateGoalDto } from './dto/goal.dto';
+import { CompletionRateQueryDto } from './dto/completion-rate.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('profiles/:profileId/goals')
@@ -17,6 +18,11 @@ export class GoalsController {
   @Get()
   list(@Req() req: AuthenticatedRequest, @Param('profileId', ParseUUIDPipe) profile: string) {
     return this.goals.list(req.user.id, profile);
+  }
+
+  @Get('completion-rate')
+  completionRate(@Req() req: AuthenticatedRequest, @Param('profileId', ParseUUIDPipe) profile: string, @Query() dto: CompletionRateQueryDto) {
+    return this.goals.completionRate(req.user.id, profile, dto.window);
   }
 
   @Get(':goalId')

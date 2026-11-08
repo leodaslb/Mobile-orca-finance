@@ -5,6 +5,7 @@ import { getTransactionCatalog } from '@/services/category.service';
 import { getRemoteReflectionItems } from '@/services/reflection.service';
 import { useProfileResource } from '@/hooks/useProfileResource';
 import { AsyncState } from '@/components/common/AsyncState';
+import { Destination } from '@/components/common/FinanceScreen';
 import { colors, fontFamily, fontSize, radius, spacing } from '@/theme';
 import { IconAdjustmentsHorizontal, IconCalendar, IconCategory, IconPlayerPause, IconSearch, IconTag, IconX } from '@tabler/icons-react-native';
 import { useRouter } from 'expo-router';
@@ -76,6 +77,8 @@ export default function TransacoesScreen() {
                 <IconAdjustmentsHorizontal size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
+            <Destination title="Histórico de alterações" caption="Inclui transações revertidas" href="/transacao/historico" />
+            <Destination title="Importar CSV" caption="Selecione, revise e confirme seus dados" href="/transacao/importar" />
             {reflectionOnly && reflectionItems.length > 0 && <View style={styles.reflectionResults}>
               <Text style={styles.sectionTitle}>AGUARDANDO REFLEXÃO</Text>
               {reflectionItems.map(item => <Pressable key={item.id} accessibilityRole="button" onPress={() => router.push('/reflexao')}><Text style={styles.empty}>{item.descricao} ? {item.liberado ? 'Liberado' : 'Em espera'}</Text></Pressable>)}

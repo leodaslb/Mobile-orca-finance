@@ -6,7 +6,8 @@ import { UsersModule } from '../users/users.module';
 import { BudgetsController } from './budgets.controller';
 import { BudgetsRepository } from './budgets.repository';
 import { BudgetsService } from './budgets.service';
+import { ClockModule } from '../../common/clock';
 
-@Module({ imports: [PrismaModule, AuthModule, ProfilesModule, UsersModule], controllers: [BudgetsController],
-  providers: [BudgetsRepository, BudgetsService] })
+@Module({ imports: [PrismaModule, AuthModule, ProfilesModule, UsersModule, ClockModule], controllers: [BudgetsController],
+  providers: [BudgetsRepository, BudgetsService], exports: [BudgetsService, BudgetsRepository] })
 export class BudgetsModule {}

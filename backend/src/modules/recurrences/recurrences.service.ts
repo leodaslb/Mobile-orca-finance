@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma, Recorrencia } from '../../generated/prisma/client';
 import { Clock } from '../../common/clock';
 import { ProfilesService } from '../profiles/profiles.service';
@@ -6,16 +6,19 @@ import { TransactionsService } from '../transactions/transactions.service';
 import { RecurrencesRepository } from './recurrences.repository';
 import { CreateRecurrenceDto, UpdateRecurrenceDto } from './recurrence.dto';
 import { nextOccurrence, withinEnd } from './recurrence-date';
+import { SpendingAlertsService } from '../spending-alerts/spending-alerts.service';
 
 @Injectable()
 export class RecurrencesService {
   private readonly logger = new Logger(RecurrencesService.name);
   constructor(private readonly recurrences: RecurrencesRepository, private readonly profiles: ProfilesService,
-    private readonly transactions: TransactionsService, private readonly clock: Clock) {}
+    private readonly transactions: TransactionsService, private readonly clock: Clock,
+    @Optional() private readonly spendingAlerts?: SpendingAlertsService) {}
   private present(item: Recorrencia) {
     return { id: item.id, perfilId: item.perfilId, tipoTransacao: item.tipoTransacao, valor: item.valor.toFixed(2), descricao: item.descricao,
       categoriaId: item.categoriaId, subcategoriaId: item.subcategoriaId, metodoPagamento: item.metodoPagamento, frequencia: item.frequencia,
-      proximaOcorrencia: item.proximaOcorrencia.toISOString(), dataTermino: item.dataTermino?.toISOString().slice(0, 10) ?? null, ativa: item.ativa };
+      proximaOcorrencia: item.proximaOcorrencia.toISOString(), dataTermino: item.dataTermino?.toISOString().slice(0, 10) ?? null, ativa: item.ativa,
+      createdAt: item.createdAt.toISOString(), updatedAt: item.updatedAt.toISOString() };
   }
   private end(value: string | null | undefined) {
     if (!value) return null;
@@ -70,7 +73,7 @@ export class RecurrencesService {
   }
   async processDue(now = this.clock.now(), profile?: string) {
     for (const item of await this.recurrences.due(now, profile)) {
-      try { await this.processRecurrence(item.perfilId, item.id, now); }
+      try { await this.processRecurrence(item.perfilId, item.id, now); await this.spendingAlerts?.evaluateProfile(item.perfilId); }
       catch { this.logger.error(`Falha ao processar recorrência ${item.id}; será tentada novamente no próximo ciclo.`); }
     }
   }

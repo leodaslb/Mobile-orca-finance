@@ -1,4 +1,5 @@
 import { DateTimeField } from '@/components/common/DateTimeField';
+import { CategorySuggestion } from '@/components/domain/CategorySuggestion';
 import { FormScrollView } from '@/components/common/KeyboardLayout';
 import { CreateSubcategoryModal } from '@/components/domain/CreateSubcategoryModal';
 import type { CatalogSubcategory } from '@/services/category.service';
@@ -393,6 +394,7 @@ export function TransactionForm({
       </View>
 
       {/* CATEGORIA */}
+      {type === 'expense' && !categoryId && <CategorySuggestion description={description} onAccept={id => { setCategoryId(id); setSubcategoryId(null); }} />}
       {editing && initialValues?.categoryId === null && !initialValues.freeSpending && <Text style={styles.inputLabel}>
         {'recurrenceId' in initialValues && initialValues.recurrenceId ? 'Ocorrência gerada automaticamente. A categoria permanece opcional.' : 'Este registro não possui categoria. Para editar os campos de uma transação manual comum, informe a categoria.'}
       </Text>}

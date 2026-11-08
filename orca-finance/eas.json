@@ -6,7 +6,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://10.146.213.200:3000"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -14,11 +17,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.1.104:3000"
+        "EXPO_PUBLIC_API_URL": "http://10.146.213.200:3000"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://10.146.213.200:3000"
+      }
     }
   },
   "submit": {

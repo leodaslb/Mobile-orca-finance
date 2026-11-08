@@ -5,7 +5,7 @@ const deferred = () => { let resolve, reject; const promise = new Promise((yes, 
 
 // Scheduler mínimo dos hooks: Promises controladas verificam o comportamento,
 // sem renderizar componentes nativos nem acrescentar framework ao projeto.
-function harness(context) {
+function harness(context, { react = {}, stubs = {} } = {}) {
   const slots = []; let cursor = 0; let effects = []; let dirty = false; let hook; let value;
   const equal = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
   function state(initial) {
@@ -22,9 +22,10 @@ function harness(context) {
     const index = cursor++; const previous = slots[index];
     if (!previous || !equal(previous.dependencies, dependencies)) effects.push(() => { previous?.cleanup?.(); slots[index] = { dependencies, cleanup: callback() }; });
   }
-  const load = createLoader({ react: { useState: state, useCallback: memo, useRef: initial => { const index = cursor++; return slots[index] ?? (slots[index] = { current: initial }); }, useEffect: effect },
+  const load = createLoader({ react: { useState: state, useCallback: memo, useMemo: (factory, deps) => memo(factory, deps)(), useRef: initial => { const index = cursor++; return slots[index] ?? (slots[index] = { current: initial }); }, useEffect: effect, ...react },
     'expo-router': { useFocusEffect: callback => effect(callback, [callback]) },
     '@/contexts/AppSessionContext': { useAppSession: () => context },
+    ...stubs,
   });
   function render() {
     do { dirty = false; cursor = 0; effects = []; value = hook(); const pending = effects; effects = []; pending.forEach(run => run()); } while (dirty);
@@ -73,6 +74,14 @@ function harness(context) {
   newProfile.resolve(['profile-c month']); await tick(); assert.deepEqual(months.render().data, ['profile-c month']);
   months.unmount(); context.activeProfileId = 'profile-b';
   console.log('PASS: seleção mensal limpa dados antigos, descarta troca rápida e consulta do perfil anterior.');
+  const foreground = harness(context); const foregroundApi = foreground.load('src/services/api-client.ts'); foregroundApi.setApiSession('token-b', 'profile-b');
+  const foregroundHook = foreground.load('src/hooks/useProfileResource.ts').useProfileResource;
+  let foregroundRequest = deferred(); const foregroundLoader = () => foregroundRequest.promise;
+  foreground.mount(() => foregroundHook(foregroundLoader)); foregroundRequest.resolve(['existing form data']); await tick(); foreground.render();
+  foregroundRequest = deferred(); context.foregroundRevision = 1;
+  let resumed = foreground.render(); assert.deepEqual(resumed.data, ['existing form data']); assert.equal(resumed.loading, false); assert.equal(resumed.refreshing, true);
+  foregroundRequest.resolve(['fresh after resume']); await tick(); assert.deepEqual(foreground.render().data, ['fresh after resume']); foreground.unmount();
+  console.log('PASS: retorno do app reconsulta sem desmontar o formulário com dados já carregados.');
   const mutator = harness(context); const client = mutator.load('src/services/api-client.ts'); client.setApiSession('token-b', 'profile-b');
   const { useProfileMutation } = mutator.load('src/hooks/useProfileMutation.ts'); let mutation = mutator.mount(useProfileMutation);
   let writes = 0; let callbacks = 0; const writing = deferred();
@@ -82,5 +91,35 @@ function harness(context) {
   client.setApiSession(null, null); writing.resolve('old'); await first; mutation = mutator.render(); assert.equal(callbacks, 0); assert.equal(mutation.busy, false);
   client.setApiSession('new-token', 'profile-b'); await mutation.run(() => Promise.reject(new Error('failure')), () => callbacks++); assert.ok(mutator.render().error);
   const late = deferred(); mutation = mutator.render(); const action = mutation.run(() => late.promise, () => callbacks++); mutator.unmount(); late.resolve('late'); await action; assert.equal(callbacks, 0);
+  const writesBeforeUnmountedCall = writes; await mutation.run(() => { writes++; return Promise.resolve(); }, () => callbacks++); assert.equal(writes, writesBeforeUnmountedCall); assert.equal(callbacks, 0);
   console.log('PASS: mutation bloqueia duplo submit e callbacks após logout/desmontagem.');
+  const synchronous = harness(context); const syncApi = synchronous.load('src/services/api-client.ts'); syncApi.setApiSession('token-b', 'profile-b');
+  const syncHook = synchronous.load('src/hooks/useProfileResource.ts').useProfileResource;
+  const syncLoader = () => { throw new syncApi.ApiError(400, 'Consulta inválida.'); };
+  let syncResource = synchronous.mount(() => syncHook(syncLoader));
+  await tick(); syncResource = synchronous.render(); assert.equal(syncResource.loading, false); assert.equal(syncResource.error, 'Consulta inválida.');
+  synchronous.unmount(); console.log('PASS: erro síncrono do loader segue o estado de erro da tela, sem escapar do efeito.');
+  let provided; let apiSession = { token: null, profileId: null, revision: 0 };
+  const account = { id: 'entry-user', name: 'Ana', profileIds: ['only-profile'] };
+  const profiles = [{ id: 'only-profile', nome: 'Pessoal', moedaBase: 'BRL' }];
+  const authResult = { account, profiles, accessToken: 'test-token', activeProfileId: 'only-profile' };
+  const entry = harness(null, { react: { createContext: () => ({ Provider: props => { provided = props.value; return null; } }) }, stubs: {
+    'react/jsx-runtime': { jsx: (type, props) => type(props) },
+    'react-native': { AppState: { addEventListener: () => ({ remove() {} }) } },
+    '@/services/auth.service': { signIn: async () => authResult, signUp: async () => authResult },
+    '@/services/api-client': { SessionChangedError: class extends Error {}, handleUnauthorized: () => {}, apiRequest: async () => profiles,
+      getApiSession: () => ({ ...apiSession }), setApiSession: (token, profileId) => { apiSession = { token, profileId, revision: apiSession.revision + 1 }; } },
+    '@/services/push.service': { deactivatePush: async () => true },
+    '@/services/security.service': { getLocalSecuritySettings: () => ({}), initializeLocalSecurity: async () => ({}), hasLocalLock: () => false },
+  } });
+  const Provider = entry.load('src/contexts/AppSessionContext.tsx').AppSessionProvider;
+  entry.mount(() => { Provider({ children: null }); return provided; }); await tick();
+  await entry.render().signIn('ana@example.test', 'test-password'); let session = entry.render();
+  assert.equal(session.account.id, account.id); assert.equal(session.activeProfileId, null); assert.equal(apiSession.profileId, null);
+  await session.refreshProfiles(); session = entry.render(); assert.equal(session.activeProfileId, null, 'atualizar perfil único não pula a escolha');
+  assert.throws(() => session.setActiveProfile('foreign-profile'), /não pertence/);
+  session.setActiveProfile('only-profile'); session = entry.render(); assert.equal(session.activeProfileId, 'only-profile'); assert.equal(apiSession.profileId, 'only-profile');
+  await session.signOut(); assert.equal(entry.render().account, null);
+  await entry.render().signUp('Ana', 'ana@example.test', 'test-password'); assert.equal(entry.render().activeProfileId, null);
+  entry.unmount(); console.log('PASS: login/cadastro exigem escolha explícita mesmo com perfil único; refresh não seleciona e ownership permanece.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

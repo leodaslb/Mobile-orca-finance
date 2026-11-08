@@ -6,7 +6,7 @@ export function useProfileMutation() {
   const locked = useRef(false); const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function run<T>(operation: () => Promise<T>, onSuccess: (value: T) => void) {
-    if (locked.current) return;
+    if (locked.current || !mounted.current) return;
     locked.current = true; setBusy(true); setError(''); const revision = getApiSession().revision;
     try { const value = await operation(); if (mounted.current && revision === getApiSession().revision) onSuccess(value); }
     catch (e) { if (mounted.current && revision === getApiSession().revision && !(e instanceof SessionChangedError)) setError(errorMessage(e)); }
